@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Audio recordings / temporary files
+*.wav
+*.webm
+*.mp3
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,30 @@
+audio:
+  channels: 1
+  device: null
+  sample_rate: 16000
+clipboard:
+  auto_paste: true
+  direct_typing: false
+  restore_clipboard: false
+hotkey:
+  combination: ctrl_r
+  mode: toggle
+transcription:
+  groq:
+    api_key: ''
+    model: whisper-large-v3
+  local:
+    device: auto
+    model_size: base
+  openai:
+    api_key: ''
+    model: whisper-1
+    prompt: ''
+  provider: voice_editor
+  voice_editor:
+    do_cleanup: true
+    headers: {}
+    language: auto
+    url: wss://voice-editor.minipc.na/ws/transcribe
+ui:
+  show_edit_window: true
