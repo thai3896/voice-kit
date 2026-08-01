@@ -1,0 +1,14 @@
+[project]
+name = "imagekit"
+version = "0.1.0"
+description = "A macOS application for on-screen OCR using VLLM models."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.5.0",
+    "pynput>=1.7.6",
+    "mss>=9.0.0",
+    "requests>=2.31.0",
+    "pyperclip>=1.8.2",
+    "PyYAML>=6.0"
+]

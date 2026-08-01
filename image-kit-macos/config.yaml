@@ -1,0 +1,5 @@
+hotkey: cmd+shift+2
+api_url: "https://ollama.minipc.na/v1/chat/completions"
+model: "llama3.2-vision:11b"
+copy_to_clipboard: true
+show_editor: true
