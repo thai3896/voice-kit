@@ -12,38 +12,44 @@ class AIClient:
         self.chat_model = chat_model
         self.messages = []
 
-    def send_initial_request(self, prompt, base64_image):
+    def send_initial_request(self, prompt, base64_image=None, on_text_extracted=None):
         """
-        Step 1: Extract text using Ollama Vision.
-        Step 2: Send extracted text + prompt to Ollama Chat.
+        Step 1: Extract text using Vision model (if image provided).
+        Step 2: Send prompt (and extracted text) to Chat model.
         """
-        # 1. Ask Ollama Vision to extract the text
-        vision_payload = {
-            "model": self.vision_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract all text from this image."},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}"
+        if base64_image:
+            # 1. Ask Vision model to extract the text
+            vision_payload = {
+                "model": self.vision_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Extract all text from this image."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{base64_image}"
+                                }
                             }
-                        }
-                    ]
-                }
-            ],
-            "temperature": 0.1
-        }
-        
-        extracted_text = self._make_request(self.vision_api_url, vision_payload)
-        if "Error:" in extracted_text:
-            return f"Failed to extract text from image.\n{extracted_text}"
+                        ]
+                    }
+                ],
+                "temperature": 0.1
+            }
             
-        # 2. Build context for Ollama Chat
-        chat_prompt = f"Here is the text extracted from an image by an OCR model:\n\n{extracted_text}\n\nUser Question: {prompt}"
-        
+            extracted_text = self._make_request(self.vision_api_url, vision_payload)
+            if "Error:" in extracted_text:
+                return f"Failed to extract text from image.\n{extracted_text}"
+                
+            if on_text_extracted:
+                on_text_extracted(extracted_text)
+                
+            # 2. Build context for Chat model
+            chat_prompt = f"Here is the text extracted from an image by an OCR model:\n\n{extracted_text}\n\nUser Question: {prompt}"
+        else:
+            chat_prompt = prompt
+            
         self.messages = [
             {"role": "user", "content": chat_prompt}
         ]
@@ -62,7 +68,7 @@ class AIClient:
         
         return answer
 
-    def send_followup_request(self, text_prompt, base64_image=None):
+    def send_followup_request(self, text_prompt, base64_image=None, on_text_extracted=None):
         """
         Sends a follow-up text request to the chat model with history.
         If a new base64_image is provided, it extracts the text via the vision model first.
@@ -91,6 +97,9 @@ class AIClient:
             extracted_text = self._make_request(self.vision_api_url, vision_payload)
             if "Error:" in extracted_text:
                 return f"Failed to extract text from the new attached image.\n{extracted_text}"
+                
+            if on_text_extracted:
+                on_text_extracted(extracted_text)
                 
             # 2. Build context for the chat model
             chat_prompt = f"Here is additional text extracted from a new image provided by the user:\n\n{extracted_text}\n\nUser Question: {text_prompt}"

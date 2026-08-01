@@ -129,7 +129,30 @@ class AppController(QObject):
             
         if self.config.get("show_editor"):
             self.editor = EditorWindow(text, self.config)
+            self.editor.ask_ai_requested.connect(self.follow_up_with_ai)
             self.editor.show()
+
+    def follow_up_with_ai(self, ocr_text):
+        # Show prompt dialog
+        dialog = PromptDialog(pixmap=None)
+        if dialog.exec():
+            prompt = dialog.get_prompt()
+            if not prompt: return
+            
+            # Init AI Client
+            ai_client = AIClient(
+                chat_api_url=self.config.get("ai_api_url"),
+                vision_api_url=self.config.get("vision_api_url", self.config.get("ai_api_url")),
+                vision_model=self.config.get("vision_model"),
+                chat_model=self.config.get("chat_model")
+            )
+            
+            # Show Chat Window
+            self.chat_window = ChatWindow(ai_client, self.history_manager)
+            self.chat_window.show()
+            
+            full_prompt = f"Here is some text I just extracted from an image:\n\n{ocr_text}\n\nUser Question: {prompt}"
+            self.chat_window.start_initial_request(full_prompt, None)
 
     def process_ai_selection(self, rect):
         if not self.overlay: return
@@ -142,7 +165,7 @@ class AppController(QObject):
         base64_img = ScreenGrabber.pixmap_to_base64(cropped)
         
         # Show prompt dialog
-        dialog = PromptDialog()
+        dialog = PromptDialog(pixmap=cropped)
         if dialog.exec():
             prompt = dialog.get_prompt()
             if not prompt: return

@@ -30,7 +30,6 @@ class OCRClient:
                     ]
                 }
             ],
-            "max_tokens": 1024,
             "temperature": 0.1
         }
         
