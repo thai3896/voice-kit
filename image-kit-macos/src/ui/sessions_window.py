@@ -102,8 +102,6 @@ class SessionsWindow(QMainWindow):
         if item:
             session_id = item.data(Qt.ItemDataRole.UserRole)
             self.on_session_selected_callback(session_id)
-            self.close()
-            
     def on_item_double_clicked(self, item):
         self.open_selected()
         

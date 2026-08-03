@@ -12,7 +12,14 @@ DEFAULT_CONFIG = {
     "show_editor": True,
     "ai_api_url": "https://ollama.minipc.na/v1/chat/completions",
     "vision_model": "llava:latest",
-    "chat_model": "qwen2.5:14b"
+    "chat_model": "qwen2.5:14b",
+    "general_vision_model": "qwen2.5vl:3b",
+    "vision_prompts": {
+        "General Description": "Analyze this image in detail. Describe the main subjects, the setting, objects present, their relationships, colors, and any text visible. Provide a comprehensive summary of what is happening in the scene.",
+        "UI / Web Design": "Analyze this user interface. Describe the layout, color palette, typography, visual hierarchy, and interactive elements.",
+        "Diagram / Chart": "Explain the flow, architecture, or data represented in this diagram or chart. Break down the components and their relationships.",
+        "Code / Text Structure": "Analyze the structure and semantics of the code or structured text shown in this image."
+    }
 }
 
 class ConfigManager:

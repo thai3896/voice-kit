@@ -130,6 +130,13 @@ class EditorWindow(QMainWindow):
         layout.addLayout(btn_layout)
         self.is_editing = False
 
+    def set_text(self, text):
+        self.raw_text = text
+        if self.is_editing:
+            self.text_edit.setPlainText(text)
+        else:
+            self._render_preview()
+
     def trigger_ask_ai(self):
         # Always use the most up-to-date raw text
         if self.is_editing:

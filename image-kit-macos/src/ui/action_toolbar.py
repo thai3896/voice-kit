@@ -5,12 +5,15 @@ from PyQt6.QtGui import QColor
 class ActionToolbar(QWidget):
     ocr_requested = pyqtSignal()
     ai_requested = pyqtSignal()
+    vision_requested = pyqtSignal()
+    ask_vision_requested = pyqtSignal()
     cancel_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -35,9 +38,17 @@ class ActionToolbar(QWidget):
         self.btn_ocr.setStyleSheet(button_style)
         self.btn_ocr.clicked.connect(self.ocr_requested.emit)
 
-        self.btn_ai = QPushButton("Ask AI")
+        self.btn_ai = QPushButton("Ask with OCR")
         self.btn_ai.setStyleSheet(button_style)
         self.btn_ai.clicked.connect(self.ai_requested.emit)
+
+        self.btn_vision = QPushButton("Vision")
+        self.btn_vision.setStyleSheet(button_style)
+        self.btn_vision.clicked.connect(self.vision_requested.emit)
+
+        self.btn_ask_vision = QPushButton("Ask with Vision")
+        self.btn_ask_vision.setStyleSheet(button_style)
+        self.btn_ask_vision.clicked.connect(self.ask_vision_requested.emit)
 
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setStyleSheet(button_style)
@@ -45,6 +56,8 @@ class ActionToolbar(QWidget):
 
         layout.addWidget(self.btn_ocr)
         layout.addWidget(self.btn_ai)
+        layout.addWidget(self.btn_vision)
+        layout.addWidget(self.btn_ask_vision)
         layout.addWidget(self.btn_cancel)
 
         # Add drop shadow
@@ -53,3 +66,9 @@ class ActionToolbar(QWidget):
         shadow.setColor(QColor(0, 0, 0, 150))
         shadow.setOffset(0, 2)
         self.setGraphicsEffect(shadow)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_requested.emit()
+        else:
+            super().keyPressEvent(event)

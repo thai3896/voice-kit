@@ -1,5 +1,9 @@
-hotkey: cmd+shift+2
-api_url: "https://ollama.minipc.na/v1/chat/completions"
-model: "llama3.2-vision:11b"
+ai_api_url: https://ollama.minipc.na/v1/chat/completions
+api_url: https://ovis.minipc.na/v1/chat/completions
+chat_model: qwen2.5:14b
 copy_to_clipboard: true
+hotkey: cmd_r
+model: ATH-MaaS/OvisOCR2
 show_editor: true
+vision_api_url: https://ovis.minipc.na/v1/chat/completions
+vision_model: ATH-MaaS/OvisOCR2
