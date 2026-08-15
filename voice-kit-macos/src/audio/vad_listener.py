@@ -5,7 +5,7 @@ import time
 from typing import Callable, Optional
 
 class VADListener:
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[int] = None):
+    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[int] = None, silence_duration: float = 1.5):
         self.sample_rate = sample_rate
         self.channels = channels
         self.device = device
@@ -19,7 +19,7 @@ class VADListener:
         
         # VAD Parameters
         self.energy_threshold = 0.01  # Adjust based on mic sensitivity
-        self.silence_duration_limit = 1.5  # Seconds of silence before speech ends
+        self.silence_duration_limit = silence_duration  # Seconds of silence before speech ends
         self.speech_duration_limit = 0.3   # Seconds of speech before speech starts
         
         # State

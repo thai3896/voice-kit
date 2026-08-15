@@ -38,3 +38,5 @@ tts:
   voice: af_sarah
 ui:
   show_edit_window: false
+vad:
+  silence_duration: 4.0

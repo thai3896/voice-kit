@@ -1,7 +1,7 @@
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QCheckBox, QPushButton, QGroupBox, QFormLayout, QTabWidget, QWidget, QMessageBox, QSpinBox
+    QComboBox, QCheckBox, QPushButton, QGroupBox, QFormLayout, QTabWidget, QWidget, QMessageBox, QSpinBox, QDoubleSpinBox
 )
 from src.config_manager import ConfigManager
 import sounddevice as sd
@@ -62,6 +62,12 @@ class SettingsDialog(QDialog):
         self.max_rec_spin.setRange(10, 5000)
         self.max_rec_spin.setSingleStep(50)
         gen_layout.addRow("Keep Recordings:", self.max_rec_spin)
+
+        self.silence_dur_spin = QDoubleSpinBox()
+        self.silence_dur_spin.setRange(0.5, 10.0)
+        self.silence_dur_spin.setSingleStep(0.5)
+        self.silence_dur_spin.setDecimals(1)
+        gen_layout.addRow("Silence Timeout (s):", self.silence_dur_spin)
 
         self.btn_check_perms = QPushButton("🔐 Check macOS Accessibility Permission...")
         self.btn_check_perms.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -194,6 +200,8 @@ class SettingsDialog(QDialog):
                 self.mic_combo.setCurrentIndex(idx)
 
         self.max_rec_spin.setValue(int(cfg.get("history.max_recordings", 100)))
+        
+        self.silence_dur_spin.setValue(float(cfg.get("vad.silence_duration", 1.5)))
 
         provider = cfg.get("transcription.provider", "voice_editor")
         self.provider_combo.setCurrentText(provider)
@@ -231,6 +239,7 @@ class SettingsDialog(QDialog):
             cfg.set("audio.device_id", None)
             
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
+        cfg.set("vad.silence_duration", float(self.silence_dur_spin.value()))
         cfg.set("clipboard.auto_paste", True)
         cfg.set("clipboard.restore_clipboard", False)
         cfg.set("clipboard.direct_typing", False)

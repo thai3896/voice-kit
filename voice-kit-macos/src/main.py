@@ -71,7 +71,8 @@ class AppCoordinator(QObject):
         self.vad = VADListener(
             sample_rate=self.config.get("audio.sample_rate", 16000),
             channels=self.config.get("audio.channels", 1),
-            device=self.config.get("audio.device_id", None)
+            device=self.config.get("audio.device_id", None),
+            silence_duration=float(self.config.get("vad.silence_duration", 1.5))
         )
         self.vad.on_speech_start = self._on_vad_speech_start
         self.vad.on_speech_end = self._on_vad_speech_end
@@ -505,6 +506,8 @@ class AppCoordinator(QObject):
                 channels=self.config.get("audio.channels", 1),
                 device=self.config.get("audio.device_id", None)
             )
+            
+        self.vad.silence_duration_limit = float(self.config.get("vad.silence_duration", 1.5))
             
         self.openclaw.url = self.config.get("openclaw.url", "http://openclaw.minipc.na/v1/chat/completions")
         self.openclaw.token = self.config.get("openclaw.token", "")
