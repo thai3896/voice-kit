@@ -24,6 +24,10 @@ from src.transcription.base import BaseTranscriptionProvider
 from src.transcription.voice_editor_provider import VoiceEditorProvider
 from src.transcription.openai_provider import OpenAIProvider
 from src.transcription.local_provider import LocalProvider
+from src.audio.vad_listener import VADListener
+from src.api.openclaw_client import OpenClawClient
+from src.api.kokoro_tts import KokoroTTS
+from src.ui.assistant_window import AssistantWindow
 
 
 class AppCoordinator(QObject):
@@ -54,12 +58,39 @@ class AppCoordinator(QObject):
         # Initialize engines
         self.recorder = AudioRecorder(
             sample_rate=self.config.get("audio.sample_rate", 16000),
-            channels=self.config.get("audio.channels", 1)
+            channels=self.config.get("audio.channels", 1),
+            device=self.config.get("audio.device_id", None)
         )
         self.paster = ClipboardPaster(
             auto_paste=self.config.get("clipboard.auto_paste", True),
             restore_clipboard=self.config.get("clipboard.restore_clipboard", False),
             use_clipboard=not self.config.get("clipboard.direct_typing", False)
+        )
+        self.provider = self._create_provider()
+        
+        self.vad = VADListener(
+            sample_rate=self.config.get("audio.sample_rate", 16000),
+            channels=self.config.get("audio.channels", 1),
+            device=self.config.get("audio.device_id", None)
+        )
+        self.vad.on_speech_start = self._on_vad_speech_start
+        self.vad.on_speech_end = self._on_vad_speech_end
+        
+        self.assistant_win = AssistantWindow()
+        self.assistant_win.signal_open_sessions.connect(self.show_sessions)
+        self.assistant_win.signal_new_session.connect(self._on_new_active_session)
+        
+        self.active_session_id = None
+        self.active_session_text = ""
+        
+        self.openclaw = OpenClawClient(
+            url=self.config.get("openclaw.url", "http://openclaw.minipc.na/v1/chat/completions"),
+            token=self.config.get("openclaw.token", ""),
+            model=self.config.get("openclaw.model", "openclaw/voice-kit")
+        )
+        self.tts = KokoroTTS(
+            url=self.config.get("tts.kokoro_url", "http://kokoro.minipc.na/v1/audio/speech"),
+            voice=self.config.get("tts.voice", "af_bella")
         )
         self.provider = self._create_provider()
         
@@ -104,6 +135,7 @@ class AppCoordinator(QObject):
         self.tray.signal_open_sessions.connect(self.show_sessions)
         self.tray.signal_open_recordings.connect(self.show_recordings)
         self.tray.signal_open_settings.connect(self.open_settings)  # kept for compat
+        self.tray.trigger_active_listening.connect(self.toggle_active_listening)
         self.tray.signal_quit.connect(self.quit_app)
 
     def _open_app(self):
@@ -161,7 +193,7 @@ class AppCoordinator(QObject):
         self.start_recording(clear_main=True)
 
     def _should_show_editor(self) -> bool:
-        return False
+        return self.editor.isVisible() or self.config.get("behavior.show_editor_on_hotkey", False)
 
     def start_recording(self, clear_main: bool | None = None, from_hotkey: bool = False):
         if self.recorder.is_recording:
@@ -324,12 +356,35 @@ class AppCoordinator(QObject):
 
     def _on_open_session_from_dialog(self, session_data: dict):
         text = session_data.get("text", "")
-        self.editor.signal_show_idle.emit()
-        self.editor.show()
-        self.editor.raise_()
-        self.editor.activateWindow()
-        self.editor.text_edit.setPlainText(text)
-        self.editor.lbl_status.setText(f"📂 Loaded session from {session_data.get('date', '')} {session_data.get('timestamp', '')}")
+        provider = session_data.get("provider", "")
+        
+        # If it's an OpenClaw session, load it into the Assistant Window
+        if "OpenClaw" in provider:
+            self.active_session_id = session_data.get("id")
+            self.active_session_text = text
+            
+            # Resume OpenClaw session if the ID was saved
+            if "openclaw_session_id" in session_data and session_data["openclaw_session_id"]:
+                self.openclaw.session_id = session_data["openclaw_session_id"]
+            else:
+                # Fallback if it wasn't saved natively
+                self.openclaw.session_id = str(self.active_session_id)
+                
+            self.assistant_win.load_session_text(text)
+            self.assistant_win.show()
+            self.assistant_win.raise_()
+            self.assistant_win.activateWindow()
+            
+            # Ensure VAD is listening
+            if not self.vad._listening:
+                self.toggle_active_listening()
+        else:
+            self.editor.signal_show_idle.emit()
+            self.editor.show()
+            self.editor.raise_()
+            self.editor.activateWindow()
+            self.editor.text_edit.setPlainText(text)
+            self.editor.lbl_status.setText(f"📂 Loaded session from {session_data.get('date', '')} {session_data.get('timestamp', '')}")
 
     def show_recordings(self):
         if not hasattr(self, 'recordings_window') or self.recordings_window is None:
@@ -356,6 +411,82 @@ class AppCoordinator(QObject):
                 on_complete_callback("[Error: Regeneration failed]")
         threading.Thread(target=_regen_worker, daemon=True).start()
 
+    def toggle_active_listening(self):
+        if self.vad._listening:
+            self.vad.stop()
+            self.assistant_win.set_status("Active Listening: OFF", color="#888888")
+            self.tray.active_listening_action.setChecked(False)
+            self.assistant_win.hide()
+        else:
+            self.vad.start()
+            self.assistant_win.set_status("Active Listening: ON", color="#00ff00")
+            self.tray.active_listening_action.setChecked(True)
+            self.assistant_win.show()
+            self.assistant_win.raise_()
+
+    def _on_new_active_session(self):
+        self.active_session_id = None
+        self.active_session_text = ""
+        self.openclaw.clear_history()
+
+    def _on_vad_speech_start(self):
+        pass
+        
+    def _on_vad_speech_end(self, audio_bytes: bytes):
+        if not audio_bytes:
+            return
+            
+        def _process():
+            # 1. STT
+            print("VAD segment recorded. Transcribing...")
+            # Use WAV format conversion if provider needs it, otherwise raw bytes
+            # The transcribe_bytes method in base provider usually takes raw int16 PCM bytes 
+            # if format is not specified. Whisper needs WAV headers usually.
+            import io, wave
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, "wb") as wf:
+                wf.setnchannels(self.vad.channels)
+                wf.setsampwidth(2)
+                wf.setframerate(self.vad.sample_rate)
+                wf.writeframes(audio_bytes)
+            wav_bytes = wav_io.getvalue()
+
+            text = self.provider.transcribe_bytes(wav_bytes, on_partial=None)
+            if not text or text.startswith("[Error") or text.startswith("[Transcrib") or text.strip() == "":
+                return
+                
+            self.assistant_win.signal_append_user_msg.emit(text)
+            
+            # 2. OpenClaw
+            print("Sending to OpenClaw...")
+            answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.")
+            self.assistant_win.signal_append_ai_msg.emit(answer)
+            
+            # 3. TTS
+            print("Synthesizing audio...")
+            self.tts.speak(answer)
+            
+            # 4. Save to history
+            try:
+                new_exchange = f"User: {text}\n\nOpenClaw: {answer}\n\n"
+                self.active_session_text += new_exchange
+                
+                if self.active_session_id is None:
+                    self.active_session_id = self.history_mgr.add_session(
+                        self.active_session_text.strip(), 
+                        provider="OpenClaw (Active)",
+                        openclaw_session_id=self.openclaw.session_id
+                    )
+                else:
+                    self.history_mgr.update_session_text(
+                        self.active_session_id, 
+                        self.active_session_text.strip()
+                    )
+            except Exception as e:
+                print(f"Failed to save to history: {e}")
+            
+        threading.Thread(target=_process, daemon=True).start()
+
     def _on_config_changed(self):
         print("Reloading config...")
         self.provider = self._create_provider()
@@ -368,6 +499,18 @@ class AppCoordinator(QObject):
             self.config.get("hotkey.combination", "right_fn"),
             self.config.get("hotkey.mode", "toggle")
         )
+        if not self.recorder.is_recording:
+            self.recorder = AudioRecorder(
+                sample_rate=self.config.get("audio.sample_rate", 16000),
+                channels=self.config.get("audio.channels", 1),
+                device=self.config.get("audio.device_id", None)
+            )
+            
+        self.openclaw.url = self.config.get("openclaw.url", "http://openclaw.minipc.na/v1/chat/completions")
+        self.openclaw.token = self.config.get("openclaw.token", "")
+        self.openclaw.model = self.config.get("openclaw.model", "openclaw/voice-kit")
+        self.tts.url = self.config.get("tts.kokoro_url", "http://kokoro.minipc.na/v1/audio/speech")
+        self.tts.voice = self.config.get("tts.voice", "af_bella")
 
     def quit_app(self):
         print("Quitting VoiceKit macOS...")

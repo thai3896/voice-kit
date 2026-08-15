@@ -40,23 +40,25 @@ class HistoryManager:
         except Exception as e:
             print(f"HistoryManager init error: {e}")
 
-    def add_session(self, text: str, provider: str = "voice_editor", audio_path: str = None) -> None:
+    def add_session(self, text: str, provider: str = "voice_editor", audio_path: str = None, openclaw_session_id: str = None) -> str:
         if not text or not text.strip():
-            return
+            return ""
         text = text.strip()
         with self._lock:
             max_limit = self.get_max_limit()
             sessions = self._get_recent_unlocked(limit=max_limit + 10)
             now = datetime.now()
+            entry_id = now.strftime("%Y%m%d%H%M%S") + f"_{len(sessions)}"
             entry = {
-                "id": now.strftime("%Y%m%d%H%M%S") + f"_{len(sessions)}",
+                "id": entry_id,
                 "timestamp": now.strftime("%H:%M"),
                 "date": now.strftime("%b %d"),
                 "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "text": text,
                 "provider": provider,
                 "preview": (text[:50] + "...") if len(text) > 50 else text,
-                "audio_path": audio_path
+                "audio_path": audio_path,
+                "openclaw_session_id": openclaw_session_id
             }
             sessions.insert(0, entry)
             if len(sessions) > max_limit:
@@ -74,6 +76,7 @@ class HistoryManager:
                     json.dump(sessions, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"Error saving history session: {e}")
+            return entry_id
 
     def get_recent(self, limit: int = 30) -> List[Dict[str, Any]]:
         with self._lock:

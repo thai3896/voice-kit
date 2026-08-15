@@ -12,7 +12,7 @@ from src.ui.settings_dialog import SettingsDialog
 from src.ui.editor_window import EditorWindow
 from src.api.vision_client import VisionClient
 from src.ui.prompt_dialog import PromptDialog
-from src.ui.chat_window import ChatWindow
+from src.ui.chat_window import ChatWindow, AIWorker
 from src.ui.sessions_window import SessionsWindow
 from src.api.ai_client import AIClient
 from src.api.history_manager import HistoryManager

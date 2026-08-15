@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QScrollArea, QWidget, QFrame, QMessageBox,
     QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QMetaObject, Q_ARG
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QMetaObject, Q_ARG, pyqtSlot
 from PyQt6.QtGui import QColor
 
 from src.history_manager import HistoryManager
@@ -189,6 +189,7 @@ class RecordingCardWidget(QFrame):
             pass
         self._on_play_finished()
 
+    @pyqtSlot()
     def _on_play_finished(self):
         self.is_playing = False
         self.btn_play.setText("▶")

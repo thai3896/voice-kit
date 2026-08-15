@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QCheckBox, QPushButton, QGroupBox, QFormLayout, QTabWidget, QWidget, QMessageBox, QSpinBox
 )
 from src.config_manager import ConfigManager
+import sounddevice as sd
 
 
 class SettingsDialog(QDialog):
@@ -42,6 +43,20 @@ class SettingsDialog(QDialog):
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["toggle", "hold"])
         gen_layout.addRow("Recording Mode:", self.mode_combo)
+
+        self.mic_combo = QComboBox()
+        try:
+            default_input = sd.default.device[0]
+            for i, d in enumerate(sd.query_devices()):
+                if d["max_input_channels"] > 0:
+                    name = d["name"]
+                    if i == default_input:
+                        name += " (Default)"
+                    self.mic_combo.addItem(name, userData=i)
+        except Exception as e:
+            print(f"Error querying audio devices: {e}")
+            self.mic_combo.addItem("Default Microphone", userData=None)
+        gen_layout.addRow("Microphone:", self.mic_combo)
 
         self.max_rec_spin = QSpinBox()
         self.max_rec_spin.setRange(10, 5000)
@@ -115,6 +130,33 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(trans_tab, "Transcription")
 
+        # Tab 3: OpenClaw & TTS
+        oc_tab = QWidget()
+        oc_layout = QFormLayout(oc_tab)
+        
+        self.oc_url_input = QLineEdit()
+        self.oc_url_input.setPlaceholderText("http://openclaw.minipc.na/v1/chat/completions")
+        oc_layout.addRow("OpenClaw URL:", self.oc_url_input)
+        
+        self.oc_token_input = QLineEdit()
+        self.oc_token_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.oc_token_input.setPlaceholderText("OpenClaw Bearer Token")
+        oc_layout.addRow("OpenClaw Token:", self.oc_token_input)
+        
+        self.oc_model_input = QLineEdit()
+        self.oc_model_input.setPlaceholderText("openclaw/voice-kit")
+        oc_layout.addRow("OpenClaw Model:", self.oc_model_input)
+        
+        self.tts_url_input = QLineEdit()
+        self.tts_url_input.setPlaceholderText("http://kokoro.minipc.na/v1/audio/speech")
+        oc_layout.addRow("TTS (Kokoro) URL:", self.tts_url_input)
+        
+        self.tts_voice_combo = QComboBox()
+        self.tts_voice_combo.addItems(["af_bella", "af_sarah", "am_adam", "am_michael"])
+        oc_layout.addRow("TTS Voice:", self.tts_voice_combo)
+        
+        self.tabs.addTab(oc_tab, "OpenClaw / TTS")
+
         layout.addWidget(self.tabs)
 
         # Buttons
@@ -144,6 +186,13 @@ class SettingsDialog(QDialog):
         cfg = self.config_manager
         self.hotkey_input.setText(cfg.get("hotkey.combination", "right_fn"))
         self.mode_combo.setCurrentText(cfg.get("hotkey.mode", "toggle"))
+        
+        mic_id = cfg.get("audio.device_id", None)
+        if mic_id is not None:
+            idx = self.mic_combo.findData(mic_id)
+            if idx >= 0:
+                self.mic_combo.setCurrentIndex(idx)
+
         self.max_rec_spin.setValue(int(cfg.get("history.max_recordings", 100)))
 
         provider = cfg.get("transcription.provider", "voice_editor")
@@ -164,10 +213,23 @@ class SettingsDialog(QDialog):
 
         self.local_model_combo.setCurrentText(cfg.get("transcription.local.model_size", "base"))
 
+        self.oc_url_input.setText(cfg.get("openclaw.url", "http://openclaw.minipc.na/v1/chat/completions"))
+        self.oc_token_input.setText(cfg.get("openclaw.token", ""))
+        self.oc_model_input.setText(cfg.get("openclaw.model", "openclaw/voice-kit"))
+        self.tts_url_input.setText(cfg.get("tts.kokoro_url", "http://kokoro.minipc.na/v1/audio/speech"))
+        self.tts_voice_combo.setCurrentText(cfg.get("tts.voice", "af_bella"))
+
     def _save_and_close(self):
         cfg = self.config_manager
         cfg.set("hotkey.combination", self.hotkey_input.text().strip() or "right_fn")
         cfg.set("hotkey.mode", self.mode_combo.currentText())
+        
+        mic_id = self.mic_combo.currentData()
+        if mic_id is not None:
+            cfg.set("audio.device_id", int(mic_id))
+        else:
+            cfg.set("audio.device_id", None)
+            
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
         cfg.set("clipboard.auto_paste", True)
         cfg.set("clipboard.restore_clipboard", False)
@@ -196,6 +258,12 @@ class SettingsDialog(QDialog):
         cfg.set("transcription.groq.model", self.groq_model_input.text().strip())
 
         cfg.set("transcription.local.model_size", self.local_model_combo.currentText())
+
+        cfg.set("openclaw.url", self.oc_url_input.text().strip())
+        cfg.set("openclaw.token", self.oc_token_input.text().strip())
+        cfg.set("openclaw.model", self.oc_model_input.text().strip() or "openclaw/voice-kit")
+        cfg.set("tts.kokoro_url", self.tts_url_input.text().strip())
+        cfg.set("tts.voice", self.tts_voice_combo.currentText())
 
         self.signal_config_changed.emit()
         self.accept()

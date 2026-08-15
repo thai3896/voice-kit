@@ -7,7 +7,12 @@ class TrayIcon(QSystemTrayIcon):
     signal_open_app = pyqtSignal()
     signal_open_sessions = pyqtSignal()
     signal_open_recordings = pyqtSignal()
+    trigger_record = pyqtSignal()
+    trigger_sessions = pyqtSignal()
+    trigger_settings = pyqtSignal()
+    trigger_active_listening = pyqtSignal()
     signal_quit = pyqtSignal()
+    trigger_quit = pyqtSignal()
 
     # Keep these for backward-compat with main.py connections
     signal_toggle_recording = pyqtSignal()
@@ -73,6 +78,11 @@ class TrayIcon(QSystemTrayIcon):
         self.recordings_action.triggered.connect(self.signal_open_recordings.emit)
         self.menu.addAction(self.recordings_action)
 
+        self.active_listening_action = QAction("Toggle Active Listening", self.menu)
+        self.active_listening_action.setCheckable(True)
+        self.active_listening_action.triggered.connect(self.trigger_active_listening.emit)
+        self.menu.addAction(self.active_listening_action)
+        
         self.menu.addSeparator()
 
         self.quit_action = QAction("Quit VoiceKit", self.menu)

@@ -335,11 +335,12 @@ class EditorWindow(QDialog):
         self.live_text_edit.setVisible(False)
         self.btn_cut.setVisible(False)
         self.btn_stop_recording.setVisible(False)
-        self.btn_continue.setVisible(False)
-        self.btn_new.setVisible(False)
-        self.btn_done.setVisible(bool(self.text_edit.toPlainText().strip()))
+        has_text = bool(self.text_edit.toPlainText().strip())
+        self.btn_continue.setVisible(has_text)
+        self.btn_new.setVisible(has_text)
+        self.btn_done.setVisible(has_text)
         self.btn_cancel.setVisible(False)
-        self.btn_start_recording.setVisible(True)
+        self.btn_start_recording.setVisible(not has_text)
         self.text_edit.setReadOnly(False)
 
     def _handle_show_recording(self, clear_main: bool = True):

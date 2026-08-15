@@ -1,14 +1,21 @@
 audio:
   channels: 1
   device: null
+  device_id: 1
   sample_rate: 16000
 clipboard:
   auto_paste: true
   direct_typing: false
   restore_clipboard: false
+history:
+  max_recordings: 100
 hotkey:
   combination: ctrl_r
   mode: toggle
+openclaw:
+  model: openclaw/voice-kit
+  token: ALQt1Mz6VLrl7kma8ha2cgfis0E784YxcJ5wpEMxMvFS8dBe
+  url: http://openclaw.minipc.na/v1/chat/completions
 transcription:
   groq:
     api_key: ''
@@ -26,5 +33,8 @@ transcription:
     headers: {}
     language: auto
     url: wss://voice-editor.minipc.na/ws/transcribe
+tts:
+  kokoro_url: http://kokoro.minipc.na/v1/audio/speech
+  voice: af_sarah
 ui:
-  show_edit_window: true
+  show_edit_window: false
