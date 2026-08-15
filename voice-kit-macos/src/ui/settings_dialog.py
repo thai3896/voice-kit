@@ -20,6 +20,17 @@ class SettingsDialog(QDialog):
         self.resize(480, 400)
         self._init_ui()
         self._load_from_config()
+        
+        # Connect sound combo box AFTER loading from config so it doesn't play on launch
+        self.sound_combo.currentTextChanged.connect(self._on_sound_changed)
+
+    def _on_sound_changed(self, sound_name: str):
+        if sound_name != "None":
+            import subprocess
+            try:
+                subprocess.Popen(["afplay", "-v", "0.5", f"/System/Library/Sounds/{sound_name}.aiff"])
+            except Exception:
+                pass
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -68,6 +79,10 @@ class SettingsDialog(QDialog):
         self.silence_dur_spin.setSingleStep(0.5)
         self.silence_dur_spin.setDecimals(1)
         gen_layout.addRow("Silence Timeout (s):", self.silence_dur_spin)
+
+        self.sound_combo = QComboBox()
+        self.sound_combo.addItems(["Pop", "Tink", "Glass", "Ping", "Submarine", "Basso", "Hero", "None"])
+        gen_layout.addRow("Notification Sound:", self.sound_combo)
 
         self.btn_check_perms = QPushButton("🔐 Check macOS Accessibility Permission...")
         self.btn_check_perms.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -200,8 +215,8 @@ class SettingsDialog(QDialog):
                 self.mic_combo.setCurrentIndex(idx)
 
         self.max_rec_spin.setValue(int(cfg.get("history.max_recordings", 100)))
-        
         self.silence_dur_spin.setValue(float(cfg.get("vad.silence_duration", 1.5)))
+        self.sound_combo.setCurrentText(cfg.get("vad.notification_sound", "Pop"))
 
         provider = cfg.get("transcription.provider", "voice_editor")
         self.provider_combo.setCurrentText(provider)
@@ -240,6 +255,7 @@ class SettingsDialog(QDialog):
             
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
         cfg.set("vad.silence_duration", float(self.silence_dur_spin.value()))
+        cfg.set("vad.notification_sound", self.sound_combo.currentText())
         cfg.set("clipboard.auto_paste", True)
         cfg.set("clipboard.restore_clipboard", False)
         cfg.set("clipboard.direct_typing", False)

@@ -438,6 +438,15 @@ class AppCoordinator(QObject):
             return
             
         def _process():
+            # Play a gentle sound to indicate we heard the user and are processing
+            sound_name = self.config.get("vad.notification_sound", "Pop")
+            if sound_name != "None":
+                import subprocess
+                try:
+                    subprocess.Popen(["afplay", "-v", "0.5", f"/System/Library/Sounds/{sound_name}.aiff"])
+                except Exception:
+                    pass
+
             # 1. STT
             print("VAD segment recorded. Transcribing...")
             # Use WAV format conversion if provider needs it, otherwise raw bytes
