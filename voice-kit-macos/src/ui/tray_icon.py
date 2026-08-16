@@ -23,12 +23,6 @@ class TrayIcon(QSystemTrayIcon):
         self.setIcon(self._create_default_icon(is_recording=False))
         self.setToolTip("VoiceKit — Click to open")
         self._create_menu()
-        # Single left-click opens the app
-        self.activated.connect(self._on_activated)
-
-    def _on_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.signal_open_app.emit()
 
     def _create_default_icon(self, is_recording: bool) -> QIcon:
         pixmap = QPixmap(32, 32)

@@ -72,7 +72,8 @@ class AppCoordinator(QObject):
             sample_rate=self.config.get("audio.sample_rate", 16000),
             channels=self.config.get("audio.channels", 1),
             device=self.config.get("audio.device_id", None),
-            silence_duration=float(self.config.get("vad.silence_duration", 1.5))
+            silence_duration=float(self.config.get("vad.silence_duration", 1.5)),
+            min_speech_duration=float(self.config.get("vad.min_speech_duration", 0.5))
         )
         self.vad.on_speech_start = self._on_vad_speech_start
         self.vad.on_speech_end = self._on_vad_speech_end
@@ -80,6 +81,9 @@ class AppCoordinator(QObject):
         self.assistant_win = AssistantWindow()
         self.assistant_win.signal_open_sessions.connect(self.show_sessions)
         self.assistant_win.signal_new_session.connect(self._on_new_active_session)
+        self.assistant_win.signal_toggle_vad.connect(self.toggle_active_listening)
+        self.assistant_win.signal_close.connect(self._on_assistant_close)
+        self.vad.on_volume_update = self.assistant_win.signal_update_volume.emit
         
         self.active_session_id = None
         self.active_session_text = ""
@@ -199,6 +203,14 @@ class AppCoordinator(QObject):
     def start_recording(self, clear_main: bool | None = None, from_hotkey: bool = False):
         if self.recorder.is_recording:
             return
+            
+        # Pause VAD if it's currently listening to prevent overlapping
+        if self.vad._listening:
+            self.vad.stop()
+            self._vad_paused_for_recording = True
+        else:
+            self._vad_paused_for_recording = False
+            
         if not from_hotkey:
             self._recording_from_hotkey = False
         if clear_main is None:
@@ -281,6 +293,11 @@ class AppCoordinator(QObject):
             self.editor.signal_show_transcribing.emit(self.config.get("transcription.provider", "voice_editor"))
         else:
             self.hud.signal_show_transcribing.emit("")
+
+        # Resume VAD if it was paused
+        if getattr(self, '_vad_paused_for_recording', False):
+            self.vad.start()
+            self._vad_paused_for_recording = False
 
         # Save audio and process in background thread
         audio_file_path = self.recorder.stop()
@@ -417,13 +434,17 @@ class AppCoordinator(QObject):
             self.vad.stop()
             self.assistant_win.set_status("Active Listening: OFF", color="#888888")
             self.tray.active_listening_action.setChecked(False)
-            self.assistant_win.hide()
         else:
             self.vad.start()
             self.assistant_win.set_status("Active Listening: ON", color="#00ff00")
             self.tray.active_listening_action.setChecked(True)
             self.assistant_win.show()
             self.assistant_win.raise_()
+
+    def _on_assistant_close(self):
+        self.assistant_win.hide()
+        if self.vad._listening:
+            self.toggle_active_listening()
 
     def _on_new_active_session(self):
         self.active_session_id = None

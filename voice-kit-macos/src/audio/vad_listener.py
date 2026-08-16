@@ -5,7 +5,7 @@ import time
 from typing import Callable, Optional
 
 class VADListener:
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[int] = None, silence_duration: float = 1.5):
+    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[int] = None, silence_duration: float = 1.5, min_speech_duration: float = 0.5):
         self.sample_rate = sample_rate
         self.channels = channels
         self.device = device
@@ -16,11 +16,13 @@ class VADListener:
         # Callbacks
         self.on_speech_start: Optional[Callable[[], None]] = None
         self.on_speech_end: Optional[Callable[[bytes], None]] = None
+        self.on_volume_update: Optional[Callable[[float], None]] = None
         
         # VAD Parameters
         self.energy_threshold = 0.01  # Adjust based on mic sensitivity
         self.silence_duration_limit = silence_duration  # Seconds of silence before speech ends
-        self.speech_duration_limit = 0.3   # Seconds of speech before speech starts
+        self.min_speech_duration = min_speech_duration  # Min seconds of speech to keep
+        self.speech_duration_limit = 0.05   # Seconds of speech before speech starts
         
         # State
         self._is_speaking = False
@@ -71,9 +73,12 @@ class VADListener:
         with self._lock:
             data_copy = indata.copy()
             float_data = data_copy.astype(np.float32) / 32768.0
-            rms = np.sqrt(np.mean(float_data ** 2))
+            rms = float(np.sqrt(np.mean(float_data ** 2)))
             
             is_active = rms > self.energy_threshold
+            
+            if self.on_volume_update:
+                self.on_volume_update(rms)
 
             if self._is_speaking:
                 self._frames.append(data_copy)
@@ -87,9 +92,17 @@ class VADListener:
                         self._silence_start_time = None
                         audio_data = np.concatenate(self._frames, axis=0)
                         self._frames = []
-                        if self.on_speech_end:
-                            # Run callback in thread to not block stream
-                            threading.Thread(target=self.on_speech_end, args=(audio_data.tobytes(),), daemon=True).start()
+                        
+                        # Calculate actual speech duration (total minus trailing silence)
+                        total_duration = len(audio_data) / self.sample_rate
+                        actual_speech_duration = total_duration - self.silence_duration_limit
+                        
+                        if actual_speech_duration >= self.min_speech_duration:
+                            if self.on_speech_end:
+                                # Run callback in thread to not block stream
+                                threading.Thread(target=self.on_speech_end, args=(audio_data.tobytes(),), daemon=True).start()
+                        else:
+                            print(f"VAD: Ignored short sound ({actual_speech_duration:.2f}s < {self.min_speech_duration}s)")
                 else:
                     self._silence_start_time = None
             else:

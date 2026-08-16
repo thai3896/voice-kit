@@ -242,6 +242,12 @@ class SessionsDialog(QDialog):
             self.btn_open.setEnabled(True)
             self.btn_delete.setEnabled(True)
             self.btn_copy.setText("📋 Copy Text")
+            provider = data.get("provider", "")
+            if "OpenClaw" in provider:
+                self.btn_open.setText("💬 Resume in Chat")
+            else:
+                self.btn_open.setText("📝 Open in Editor")
+            self.btn_copy.setText("📋 Copy Text")
 
     def _on_item_double_clicked(self, item: QListWidgetItem):
         self._on_open_clicked()

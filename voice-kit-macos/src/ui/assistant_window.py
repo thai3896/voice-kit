@@ -1,12 +1,51 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, QPushButton, QSizeGrip
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QMouseEvent
+from PyQt6.QtGui import QFont, QColor, QMouseEvent, QPainter
+import math
+
+class AudioMeter(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(60, 20)
+        self.history = [(0.0, 0.0)] * 15
+        self.active_threshold = 0.01
+        
+    def set_volume(self, rms: float):
+        # Scale rms. It's usually very small. We cap at 0.1 for max height.
+        val = min(rms * 10.0, 1.0)
+        self.history.append((val, rms))
+        if len(self.history) > 15:
+            self.history.pop(0)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        bar_width = 2
+        spacing = 2
+        for i, (val, raw_rms) in enumerate(self.history):
+            h = int(val * self.height())
+            if h < 2: h = 2
+            
+            # Color: green if above threshold, grey otherwise
+            if raw_rms > self.active_threshold:
+                color = QColor("#00ff00")
+            else:
+                color = QColor("#555555")
+                
+            x = i * (bar_width + spacing)
+            y = (self.height() - h) // 2
+            painter.fillRect(x, y, bar_width, h, color)
 
 class AssistantWindow(QWidget):
     signal_new_session = pyqtSignal()
     signal_open_sessions = pyqtSignal()
     signal_append_user_msg = pyqtSignal(str)
     signal_append_ai_msg = pyqtSignal(str)
+    signal_toggle_vad = pyqtSignal()
+    signal_close = pyqtSignal()
+    signal_update_volume = pyqtSignal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -25,6 +64,7 @@ class AssistantWindow(QWidget):
         # Connect signals to slots to ensure thread safety
         self.signal_append_user_msg.connect(self.append_user_msg)
         self.signal_append_ai_msg.connect(self.append_ai_msg)
+        self.signal_update_volume.connect(self._on_volume_update)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -66,7 +106,16 @@ class AssistantWindow(QWidget):
         """)
         header_layout.addWidget(self.status_label)
         
+        self.audio_meter = AudioMeter()
+        header_layout.addWidget(self.audio_meter)
+        
         header_layout.addStretch()
+        
+        self.btn_toggle_vad = QPushButton("🎙️")
+        self.btn_toggle_vad.setToolTip("Toggle Active Listening")
+        self.btn_toggle_vad.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_vad.clicked.connect(self.signal_toggle_vad.emit)
+        header_layout.addWidget(self.btn_toggle_vad)
         
         self.btn_history = QPushButton("📜")
         self.btn_history.setToolTip("Session History")
@@ -80,6 +129,12 @@ class AssistantWindow(QWidget):
         self.btn_new.clicked.connect(self.clear_session)
         self.btn_new.clicked.connect(self.signal_new_session.emit)
         header_layout.addWidget(self.btn_new)
+        
+        self.btn_close = QPushButton("✖")
+        self.btn_close.setToolTip("Close")
+        self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_close.clicked.connect(self.signal_close.emit)
+        header_layout.addWidget(self.btn_close)
         
         container_layout.addWidget(self.header)
         
@@ -125,6 +180,9 @@ class AssistantWindow(QWidget):
             font-size: 14px;
             background: transparent;
         """)
+
+    def _on_volume_update(self, rms: float):
+        self.audio_meter.set_volume(rms)
 
     def append_user_msg(self, text: str):
         self.log_text.append(f"<b style='color:#0077ee;'>You:</b> {text}<br>")

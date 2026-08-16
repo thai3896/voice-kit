@@ -39,4 +39,6 @@ tts:
 ui:
   show_edit_window: false
 vad:
+  min_speech_duration: 3.0
+  notification_sound: Pop
   silence_duration: 4.0

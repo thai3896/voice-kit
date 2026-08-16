@@ -80,6 +80,12 @@ class SettingsDialog(QDialog):
         self.silence_dur_spin.setDecimals(1)
         gen_layout.addRow("Silence Timeout (s):", self.silence_dur_spin)
 
+        self.min_speech_spin = QDoubleSpinBox()
+        self.min_speech_spin.setRange(0.0, 5.0)
+        self.min_speech_spin.setSingleStep(0.1)
+        self.min_speech_spin.setDecimals(1)
+        gen_layout.addRow("Min Speech Duration (s):", self.min_speech_spin)
+
         self.sound_combo = QComboBox()
         self.sound_combo.addItems(["Pop", "Tink", "Glass", "Ping", "Submarine", "Basso", "Hero", "None"])
         gen_layout.addRow("Notification Sound:", self.sound_combo)
@@ -216,6 +222,7 @@ class SettingsDialog(QDialog):
 
         self.max_rec_spin.setValue(int(cfg.get("history.max_recordings", 100)))
         self.silence_dur_spin.setValue(float(cfg.get("vad.silence_duration", 1.5)))
+        self.min_speech_spin.setValue(float(cfg.get("vad.min_speech_duration", 0.5)))
         self.sound_combo.setCurrentText(cfg.get("vad.notification_sound", "Pop"))
 
         provider = cfg.get("transcription.provider", "voice_editor")
@@ -255,6 +262,7 @@ class SettingsDialog(QDialog):
             
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
         cfg.set("vad.silence_duration", float(self.silence_dur_spin.value()))
+        cfg.set("vad.min_speech_duration", float(self.min_speech_spin.value()))
         cfg.set("vad.notification_sound", self.sound_combo.currentText())
         cfg.set("clipboard.auto_paste", True)
         cfg.set("clipboard.restore_clipboard", False)
