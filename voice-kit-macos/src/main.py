@@ -32,6 +32,7 @@ from src.ui.assistant_window import AssistantWindow
 
 class AppCoordinator(QObject):
     signal_status_error = pyqtSignal(str)
+    signal_vad_speech_end = pyqtSignal(bytes)
 
     def __init__(self):
         super().__init__()
@@ -72,17 +73,22 @@ class AppCoordinator(QObject):
             sample_rate=self.config.get("audio.sample_rate", 16000),
             channels=self.config.get("audio.channels", 1),
             device=self.config.get("audio.device_id", None),
-            silence_duration=float(self.config.get("vad.silence_duration", 1.5)),
+            mode=self.config.get("vad.mode", "energy"),
+            energy_threshold=float(self.config.get("vad.energy_threshold", 0.006)),
+            silence_duration=float(self.config.get("vad.silence_limit", 4.0)),
             min_speech_duration=float(self.config.get("vad.min_speech_duration", 0.5))
         )
         self.vad.on_speech_start = self._on_vad_speech_start
-        self.vad.on_speech_end = self._on_vad_speech_end
+        self.vad.on_speech_end = lambda audio_bytes: self.signal_vad_speech_end.emit(audio_bytes)
+        self.signal_vad_speech_end.connect(self._on_vad_speech_end)
         
         self.assistant_win = AssistantWindow()
         self.assistant_win.signal_open_sessions.connect(self.show_sessions)
         self.assistant_win.signal_new_session.connect(self._on_new_active_session)
         self.assistant_win.signal_toggle_vad.connect(self.toggle_active_listening)
         self.assistant_win.signal_close.connect(self._on_assistant_close)
+        self.assistant_win.signal_toggle_hold.connect(self._on_toggle_hold)
+        self.assistant_win.signal_send_message.connect(self._on_manual_send)
         self.vad.on_volume_update = self.assistant_win.signal_update_volume.emit
         
         self.active_session_id = None
@@ -97,6 +103,11 @@ class AppCoordinator(QObject):
             url=self.config.get("tts.kokoro_url", "http://kokoro.minipc.na/v1/audio/speech"),
             voice=self.config.get("tts.voice", "af_bella")
         )
+        self.tts.started_playing.connect(self.vad.pause)
+        self.tts.finished.connect(self.vad.resume)
+        self.tts.started_playing.connect(self.assistant_win.btn_stop_tts.show)
+        self.tts.finished.connect(self.assistant_win.btn_stop_tts.hide)
+        self.assistant_win.signal_stop_tts.connect(self.tts.stop)
         self.provider = self._create_provider()
         
         self.hotkey = HotkeyListener(
@@ -451,53 +462,38 @@ class AppCoordinator(QObject):
         self.active_session_text = ""
         self.openclaw.clear_history()
 
-    def _on_vad_speech_start(self):
-        pass
+    def _on_toggle_hold(self):
+        new_state = not self.vad.hold_mode
+        self.vad.set_hold_mode(new_state)
+        if new_state:
+            self.assistant_win.btn_hold.setStyleSheet("background-color: #ffaa00; border-radius: 4px;")
+        else:
+            self.assistant_win.btn_hold.setStyleSheet("")
+
+    def _on_manual_send(self, text: str):
+        images, texts = self.assistant_win.get_buffered_data()
+        self.assistant_win.clear_buffered_data()
         
-    def _on_vad_speech_end(self, audio_bytes: bytes):
-        if not audio_bytes:
+        combined = text
+        if texts:
+            combined = combined + "\n" + "\n".join(texts)
+            
+        self._send_to_openclaw(combined.strip(), images)
+
+    def _send_to_openclaw(self, text: str, images: list):
+        if not text and not images:
             return
             
-        def _process():
-            # Play a gentle sound to indicate we heard the user and are processing
-            sound_name = self.config.get("vad.notification_sound", "Pop")
-            if sound_name != "None":
-                import subprocess
-                try:
-                    subprocess.Popen(["afplay", "-v", "0.5", f"/System/Library/Sounds/{sound_name}.aiff"])
-                except Exception:
-                    pass
-
-            # 1. STT
-            print("VAD segment recorded. Transcribing...")
-            # Use WAV format conversion if provider needs it, otherwise raw bytes
-            # The transcribe_bytes method in base provider usually takes raw int16 PCM bytes 
-            # if format is not specified. Whisper needs WAV headers usually.
-            import io, wave
-            wav_io = io.BytesIO()
-            with wave.open(wav_io, "wb") as wf:
-                wf.setnchannels(self.vad.channels)
-                wf.setsampwidth(2)
-                wf.setframerate(self.vad.sample_rate)
-                wf.writeframes(audio_bytes)
-            wav_bytes = wav_io.getvalue()
-
-            text = self.provider.transcribe_bytes(wav_bytes, on_partial=None)
-            if not text or text.startswith("[Error") or text.startswith("[Transcrib") or text.strip() == "":
-                return
-                
-            self.assistant_win.signal_append_user_msg.emit(text)
-            
-            # 2. OpenClaw
+        self.assistant_win.signal_append_user_msg_with_images.emit(text, images)
+        
+        def _worker():
             print("Sending to OpenClaw...")
-            answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.")
+            answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.", images=images)
             self.assistant_win.signal_append_ai_msg.emit(answer)
             
-            # 3. TTS
             print("Synthesizing audio...")
             self.tts.speak(answer)
             
-            # 4. Save to history
             try:
                 new_exchange = f"User: {text}\n\nOpenClaw: {answer}\n\n"
                 self.active_session_text += new_exchange
@@ -515,7 +511,64 @@ class AppCoordinator(QObject):
                     )
             except Exception as e:
                 print(f"Failed to save to history: {e}")
+                
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_vad_speech_start(self):
+        pass
+        
+    def _on_vad_speech_end(self, audio_bytes: bytes):
+        """Called on main thread via signal_vad_speech_end signal."""
+        if not audio_bytes:
+            return
+
+        # Safe to access UI here - we're on the main thread via signal
+        auto_send = self.assistant_win.chk_auto_send.isChecked()
+        input_box_text = self.assistant_win.input_text.toPlainText().strip()
+        
+        if auto_send:
+            self.assistant_win.input_text.clear()
+            images, texts = self.assistant_win.get_buffered_data()
+            self.assistant_win.clear_buffered_data()
+        else:
+            images, texts = [], []
             
+        def _process():
+            # Play a gentle sound to indicate we heard the user and are processing
+            sound_name = self.config.get("vad.notification_sound", "Pop")
+            if sound_name != "None":
+                import subprocess
+                try:
+                    subprocess.Popen(["afplay", "-v", "0.5", f"/System/Library/Sounds/{sound_name}.aiff"])
+                except Exception:
+                    pass
+
+            print("VAD segment recorded. Transcribing...")
+            import io, wave
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, "wb") as wf:
+                wf.setnchannels(self.vad.channels)
+                wf.setsampwidth(2)
+                wf.setframerate(self.vad.sample_rate)
+                wf.writeframes(audio_bytes)
+            wav_bytes = wav_io.getvalue()
+
+            text = self.provider.transcribe_bytes(wav_bytes, on_partial=None)
+            if not text or text.startswith("[Error") or text.startswith("[Transcrib") or text.strip() == "":
+                return
+                
+            if auto_send:
+                combined = text
+                if input_box_text:
+                    combined = input_box_text + "\n" + combined
+                if texts:
+                    combined = combined + "\n" + "\n".join(texts)
+                
+                self._send_to_openclaw(combined.strip(), images)
+            else:
+                # Preview mode: Insert text into input box safely via signal
+                self.assistant_win.signal_update_input.emit(text)
+                
         threading.Thread(target=_process, daemon=True).start()
 
     def _on_config_changed(self):
@@ -537,7 +590,17 @@ class AppCoordinator(QObject):
                 device=self.config.get("audio.device_id", None)
             )
             
+        was_listening = self.vad._listening
+        if was_listening:
+            self.vad.stop()
+            
+        self.vad.mode = self.config.get("vad.mode", "energy")
+        self.vad.energy_threshold = float(self.config.get("vad.energy_threshold", 0.006))
         self.vad.silence_duration_limit = float(self.config.get("vad.silence_duration", 1.5))
+        self.vad.min_speech_duration = float(self.config.get("vad.min_speech_duration", 0.5))
+        
+        if was_listening:
+            self.vad.start()
             
         self.openclaw.url = self.config.get("openclaw.url", "http://openclaw.minipc.na/v1/chat/completions")
         self.openclaw.token = self.config.get("openclaw.token", "")

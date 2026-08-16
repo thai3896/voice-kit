@@ -18,14 +18,22 @@ class OpenClawClient:
         # Generating a new UUID creates a fresh session.
         self.session_id = str(uuid.uuid4())
 
-    def ask(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def ask(self, prompt: str, system_prompt: Optional[str] = None, images: Optional[list] = None) -> str:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
             
-        # We only send the latest prompt. OpenClaw manages the rolling history internally 
-        # based on the `user` parameter / session key.
-        messages.append({"role": "user", "content": prompt})
+        # If images are provided, use vision payload format
+        if images:
+            content = [{"type": "text", "text": prompt}]
+            for img in images:
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": img}
+                })
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         data = json.dumps({
             "model": self.model,

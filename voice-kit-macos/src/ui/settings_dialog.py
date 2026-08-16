@@ -74,6 +74,16 @@ class SettingsDialog(QDialog):
         self.max_rec_spin.setSingleStep(50)
         gen_layout.addRow("Keep Recordings:", self.max_rec_spin)
 
+        self.vad_mode_combo = QComboBox()
+        self.vad_mode_combo.addItems(["energy", "silero"])
+        gen_layout.addRow("VAD Engine:", self.vad_mode_combo)
+
+        self.energy_spin = QDoubleSpinBox()
+        self.energy_spin.setRange(0.001, 1.0)
+        self.energy_spin.setSingleStep(0.001)
+        self.energy_spin.setDecimals(3)
+        gen_layout.addRow("Energy Threshold:", self.energy_spin)
+
         self.silence_dur_spin = QDoubleSpinBox()
         self.silence_dur_spin.setRange(0.5, 10.0)
         self.silence_dur_spin.setSingleStep(0.5)
@@ -221,6 +231,8 @@ class SettingsDialog(QDialog):
                 self.mic_combo.setCurrentIndex(idx)
 
         self.max_rec_spin.setValue(int(cfg.get("history.max_recordings", 100)))
+        self.vad_mode_combo.setCurrentText(cfg.get("vad.mode", "energy"))
+        self.energy_spin.setValue(float(cfg.get("vad.energy_threshold", 0.006)))
         self.silence_dur_spin.setValue(float(cfg.get("vad.silence_duration", 1.5)))
         self.min_speech_spin.setValue(float(cfg.get("vad.min_speech_duration", 0.5)))
         self.sound_combo.setCurrentText(cfg.get("vad.notification_sound", "Pop"))
@@ -261,6 +273,8 @@ class SettingsDialog(QDialog):
             cfg.set("audio.device_id", None)
             
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
+        cfg.set("vad.mode", self.vad_mode_combo.currentText())
+        cfg.set("vad.energy_threshold", float(self.energy_spin.value()))
         cfg.set("vad.silence_duration", float(self.silence_dur_spin.value()))
         cfg.set("vad.min_speech_duration", float(self.min_speech_spin.value()))
         cfg.set("vad.notification_sound", self.sound_combo.currentText())

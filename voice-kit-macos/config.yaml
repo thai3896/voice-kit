@@ -39,6 +39,8 @@ tts:
 ui:
   show_edit_window: false
 vad:
-  min_speech_duration: 3.0
+  energy_threshold: 0.006
+  min_speech_duration: 2.0
+  mode: silero
   notification_sound: Pop
   silence_duration: 4.0
