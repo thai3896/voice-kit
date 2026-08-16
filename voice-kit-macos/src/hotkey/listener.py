@@ -26,6 +26,11 @@ try:
                 yield _cached_ctx
             
             _darwin_util.keycode_context = _safe_keycode_ctx
+            try:
+                import pynput.keyboard._darwin as _darwin_keyboard
+                _darwin_keyboard.keycode_context = _safe_keycode_ctx
+            except Exception as _ex2:
+                logging.warning(f"Failed to patch pynput.keyboard._darwin: {_ex2}")
 except Exception as _e:
     logging.warning(f"Failed to apply macOS 15 keycode_context patch: {_e}")
 

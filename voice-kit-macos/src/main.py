@@ -116,7 +116,8 @@ class AppCoordinator(QObject):
         )
 
         self._connect_signals()
-        self._start_hotkey()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._start_hotkey)
 
     def _create_provider(self) -> BaseTranscriptionProvider:
         provider_name = self.config.get("transcription.provider", "voice_editor")

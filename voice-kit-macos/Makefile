@@ -26,11 +26,14 @@ bundle: setup
 		--collect-all soundfile \
 		--hidden-import "pynput.keyboard._darwin" \
 		--hidden-import "pynput.mouse._darwin" \
+		--collect-all "torch" \
+		--collect-all silero_vad \
+		--osx-entitlements-file entitlements.plist \
 		src/main.py
 	@printf "[Paths]\nPrefix = ../Frameworks/PyQt6/Qt6\nPlugins = plugins\n" > dist/VoiceKit.app/Contents/Resources/qt.conf
 	@cp dist/VoiceKit.app/Contents/Resources/qt.conf dist/VoiceKit.app/Contents/MacOS/qt.conf
 	@$(PYTHON) -c "import plistlib; p='dist/VoiceKit.app/Contents/Info.plist'; d=plistlib.load(open(p,'rb')); d['CFBundleIdentifier']='com.voicekit.app'; d['NSMicrophoneUsageDescription']='VoiceKit requires microphone access to record and transcribe speech.'; d['NSAccessibilityUsageDescription']='VoiceKit requires accessibility permission to listen for global hotkeys across applications.'; d['NSAppleEventsUsageDescription']='VoiceKit requires apple events permission to interact with applications.'; plistlib.dump(d, open(p,'wb'))"
-	@codesign --force --deep --sign - dist/VoiceKit.app
+	@codesign --force --deep --options runtime --entitlements entitlements.plist --sign - dist/VoiceKit.app
 	@echo "\n✨ Build complete! You can find VoiceKit.app in the dist/ folder:"
 	@echo "   open dist/VoiceKit.app"
 
