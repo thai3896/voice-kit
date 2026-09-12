@@ -176,7 +176,7 @@ class AppCoordinator(QObject):
     def _start_hotkey(self):
         from src.ui.permissions_dialog import check_accessibility, PermissionsDialog
         if not check_accessibility():
-            print("macOS Accessibility permission is missing or revoked. Showing permissions dialog...")
+            pass # print("macOS Accessibility permission is missing or revoked. Showing permissions dialog...")
             dlg = PermissionsDialog(parent=None)
             dlg.exec()
 
@@ -185,9 +185,9 @@ class AppCoordinator(QObject):
                 on_start=self.start_recording_hotkey,
                 on_stop=self.stop_recording_hotkey
             )
-            print(f"VoiceKit macOS ready! Listening for global hotkey: {self.hotkey.combination}")
+            pass # print(f"VoiceKit macOS ready! Listening for global hotkey: {self.hotkey.combination}")
         else:
-            print("macOS Accessibility permission not granted. Running without global hotkey.")
+            pass # print("macOS Accessibility permission not granted. Running without global hotkey.")
 
     def start_recording_hotkey(self) -> bool:
         if self.recorder.is_recording:
@@ -213,11 +213,11 @@ class AppCoordinator(QObject):
             self.provider.send_chunk(chunk)
 
     def continue_recording(self):
-        print("Continuing recording in the same session...")
+        pass # print("Continuing recording in the same session...")
         self.start_recording(clear_main=False)
 
     def new_session_recording(self):
-        print("Starting a new fresh recording session...")
+        pass # print("Starting a new fresh recording session...")
         self.start_recording(clear_main=True)
 
     def _should_show_editor(self) -> bool:
@@ -242,7 +242,7 @@ class AppCoordinator(QObject):
                 clear_main = False
             else:
                 clear_main = True
-        print(f"Starting recording (clear_main={clear_main})...")
+        pass # print(f"Starting recording (clear_main={clear_main})...")
         try:
             show_editor = self._should_show_editor()
 
@@ -265,12 +265,12 @@ class AppCoordinator(QObject):
             self.tray.set_recording_state(True)
             self.hotkey.set_recording_state(True)
         except Exception as e:
-            print(f"Failed to start recording: {e}")
+            pass # print(f"Failed to start recording: {e}")
 
     def cut_and_process_speech(self):
         if not self.recorder.is_recording:
             return
-        print("Cutting speech segment and processing in background...")
+        pass # print("Cutting speech segment and processing in background...")
         audio_bytes = self.recorder.get_wav_bytes()
         self.recorder.clear_buffer()
         if hasattr(self.provider, "reset_live_stream"):
@@ -296,19 +296,19 @@ class AppCoordinator(QObject):
                     try:
                         self.editor.history_mgr.add_session(result, provider=f"{self.config.get('transcription.provider', 'voice_editor')} (cut)", audio_path=cut_path)
                     except Exception as e:
-                        print(f"Failed to save cut session: {e}")
+                        pass # print(f"Failed to save cut session: {e}")
                     self.editor.signal_append_text.emit(result)
                 else:
-                    print(f"Speech cut transcription failed: {result}")
+                    pass # print(f"Speech cut transcription failed: {result}")
             except Exception as e:
-                print(f"Cut speech worker failed: {e}")
+                pass # print(f"Cut speech worker failed: {e}")
 
         threading.Thread(target=_cut_worker, daemon=True).start()
 
     def stop_recording(self):
         if not self.recorder.is_recording:
             return
-        print("Stopping recording...")
+        pass # print("Stopping recording...")
         self.tray.set_recording_state(False)
         self.hotkey.set_recording_state(False)
         show_editor = self._should_show_editor()
@@ -327,7 +327,7 @@ class AppCoordinator(QObject):
         audio_bytes = self.recorder.get_wav_bytes()
 
         if not audio_bytes and not audio_file_path:
-            print("No audio captured.")
+            pass # print("No audio captured.")
             self._recording_from_hotkey = False
             if show_editor:
                 self.editor.signal_close.emit()
@@ -350,12 +350,12 @@ class AppCoordinator(QObject):
 
     def _transcribe_thread(self, audio_bytes: bytes, audio_file_path: str = None):
         try:
-            print(f"Transcribing {len(audio_bytes)} bytes with {self.config.get('transcription.provider')}...")
+            pass # print(f"Transcribing {len(audio_bytes)} bytes with {self.config.get('transcription.provider')}...")
             if hasattr(self.provider, 'finish_stream') and getattr(self.provider, '_streaming_active', False):
                 text = self.provider.finish_stream(fallback_audio_bytes=audio_bytes)
             else:
                 text = self.provider.transcribe_bytes(audio_bytes, on_partial=None)
-            print(f"Transcription result: {text}")
+            pass # print(f"Transcription result: {text}")
 
             show_editor = self._should_show_editor()
             if text and not text.startswith("[Error") and not text.startswith("[Transcrib"):
@@ -363,7 +363,7 @@ class AppCoordinator(QObject):
                     provider_label = f"{self.config.get('transcription.provider', 'voice_editor')}" + ("" if show_editor else " (direct)")
                     self.editor.history_mgr.add_session(text, provider=provider_label, audio_path=audio_file_path)
                 except Exception as e:
-                    print(f"Failed to save session to history: {e}")
+                    pass # print(f"Failed to save session to history: {e}")
                 if show_editor:
                     # In editor mode: show text in editor. Session already saved to history with audio_path.
                     self.editor.signal_show_finished.emit(text)
@@ -452,15 +452,15 @@ class AppCoordinator(QObject):
             try:
                 with open(audio_path, "rb") as f:
                     audio_bytes = f.read()
-                print(f"Regenerating session {session_id} from {audio_path} ({len(audio_bytes)} bytes)...")
+                pass # print(f"Regenerating session {session_id} from {audio_path} ({len(audio_bytes)} bytes)...")
                 if hasattr(self.provider, 'finish_stream') and getattr(self.provider, '_streaming_active', False):
                     text = self.provider.finish_stream(fallback_audio_bytes=audio_bytes)
                 else:
                     text = self.provider.transcribe_bytes(audio_bytes, on_partial=None)
-                print(f"Regenerate result: {text}")
+                pass # print(f"Regenerate result: {text}")
                 on_complete_callback(text)
             except Exception as e:
-                print(f"Regenerate failed: {e}")
+                pass # print(f"Regenerate failed: {e}")
                 on_complete_callback("[Error: Regeneration failed]")
         threading.Thread(target=_regen_worker, daemon=True).start()
 
@@ -511,7 +511,7 @@ class AppCoordinator(QObject):
         self.assistant_win.signal_append_user_msg_with_images.emit(text, images)
         
         def _worker():
-            print("Sending to OpenClaw...")
+            pass # print("Sending to OpenClaw...")
             self.assistant_win.signal_show_indicator.emit("⏳ OpenClaw is responding...")
             try:
                 answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.", images=images)
@@ -520,7 +520,7 @@ class AppCoordinator(QObject):
                 
             self.assistant_win.signal_append_ai_msg.emit(answer)
             
-            print("Synthesizing audio...")
+            pass # print("Synthesizing audio...")
             self.tts.speak(answer)
             
             try:
@@ -539,7 +539,7 @@ class AppCoordinator(QObject):
                         self.active_session_text.strip()
                     )
             except Exception as e:
-                print(f"Failed to save to history: {e}")
+                pass # print(f"Failed to save to history: {e}")
                 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -572,7 +572,7 @@ class AppCoordinator(QObject):
                 except Exception:
                     pass
 
-            print("VAD segment recorded. Transcribing...")
+            pass # print("VAD segment recorded. Transcribing...")
             self.assistant_win.signal_show_indicator.emit("🎙️ Processing audio...")
             
             import io, wave
@@ -607,7 +607,7 @@ class AppCoordinator(QObject):
         threading.Thread(target=_process, daemon=True).start()
 
     def _on_config_changed(self):
-        print("Reloading config...")
+        pass # print("Reloading config...")
         self.provider = self._create_provider()
         self.paster = ClipboardPaster(
             auto_paste=self.config.get("clipboard.auto_paste", True),
@@ -645,7 +645,7 @@ class AppCoordinator(QObject):
         self.tts.voice = self.config.get("tts.voice", "af_bella")
 
     def quit_app(self):
-        print("Quitting VoiceKit macOS...")
+        pass # print("Quitting VoiceKit macOS...")
         self.hotkey.stop()
         if self.recorder.is_recording:
             self.recorder.stop()
@@ -676,9 +676,9 @@ def set_macos_accessory_policy():
         app = get_app(cls_NSApp, sel_sharedApp)
         if app:
             set_policy(app, sel_setPolicy, 1)  # 1 = NSApplicationActivationPolicyAccessory
-            print("[macOS] Activation policy set to Accessory (no focus stealing).")
+            pass # print("[macOS] Activation policy set to Accessory (no focus stealing).")
     except Exception as e:
-        print(f"[macOS] Could not set activation policy via ctypes: {e}")
+        pass # print(f"[macOS] Could not set activation policy via ctypes: {e}")
 
 
 def main():

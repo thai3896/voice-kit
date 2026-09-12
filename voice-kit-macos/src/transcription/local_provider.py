@@ -34,7 +34,7 @@ class LocalProvider(BaseTranscriptionProvider):
     def transcribe(self, audio_file_path: str, on_partial: Optional[Callable[[str], None]] = None) -> str:
         try:
             model = self._get_model()
-            segments, info = model.transcribe(audio_file_path, beam_size=5)
+            segments, info = model.transcribe(audio_file_path, beam_size=5, initial_prompt="Hello, welcome to my audio memo. Please transcribe this correctly, including punctuation, commas, and periods.")
             text_chunks = []
             for segment in segments:
                 text_chunks.append(segment.text)

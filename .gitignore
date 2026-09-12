@@ -27,3 +27,16 @@ __pycache__/
 .idea/
 *.swp
 *.swo
+
+# Scratch and Build Artifacts from VoiceKit Debugging
+librequestcam.dylib
+request_cam
+git_history.txt
+req_cam.py
+request_camera.py
+patch_methods.py
+test_cam.py
+test_patch.py
+test_vad.py
+LaunchVoiceKit.app/
+VoiceKit.app/

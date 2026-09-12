@@ -63,15 +63,15 @@ class VADListener:
             try:
                 # Lazy load Silero if needed
                 if self.mode == "silero":
-                    print("[VAD] Initializing Silero AI VAD...")
+                    pass # print("[VAD] Initializing Silero AI VAD...")
                     if self._silero_model is None:
                         import torch
                         from silero_vad import load_silero_vad
                         self._torch = torch
                         self._silero_model = load_silero_vad()
-                    print("[VAD] Silero AI VAD ready.")
+                    pass # print("[VAD] Silero AI VAD ready.")
                 else:
-                    print(f"[VAD] Initializing Energy VAD (threshold={self.energy_threshold})")
+                    pass # print(f"[VAD] Initializing Energy VAD (threshold={self.energy_threshold})")
                     
                 self._stream = sd.InputStream(
                     samplerate=self.sample_rate,
@@ -84,7 +84,7 @@ class VADListener:
                 self._stream.start()
             except sd.PortAudioError as e:
                 if self.device is not None:
-                    print(f"[VAD] Error with device {self.device}: {e}. Falling back to default device.")
+                    pass # print(f"[VAD] Error with device {self.device}: {e}. Falling back to default device.")
                     try:
                         sd._terminate()
                         sd._initialize()
@@ -102,10 +102,10 @@ class VADListener:
                     self._stream.start()
                 else:
                     self._listening = False
-                    print(f"Error starting VAD stream: {e}")
+                    pass # print(f"Error starting VAD stream: {e}")
             except Exception as e:
                 self._listening = False
-                print(f"Error starting VAD stream: {e}")
+                pass # print(f"Error starting VAD stream: {e}")
 
     def stop(self):
         with self._lock:
@@ -184,12 +184,12 @@ class VADListener:
                         self._active_frames_count = 0
                         
                         if actual_speech_duration >= self.min_speech_duration:
-                            print(f"[VAD] Speech ENDED (Mode: {self.mode}, duration: {actual_speech_duration:.2f}s)")
+                            pass # print(f"[VAD] Speech ENDED (Mode: {self.mode}, duration: {actual_speech_duration:.2f}s)")
                             if self.on_speech_end:
                                 # Run callback in thread to not block stream
                                 threading.Thread(target=self.on_speech_end, args=(audio_data.tobytes(),), daemon=True).start()
                         else:
-                            print(f"[VAD] Speech DISCARDED (too short: {actual_speech_duration:.2f}s < {self.min_speech_duration}s)")
+                            pass # print(f"[VAD] Speech DISCARDED (too short: {actual_speech_duration:.2f}s < {self.min_speech_duration}s)")
                 else:
                     self._silence_start_time = None
             else:
@@ -198,7 +198,7 @@ class VADListener:
                     self._speech_start_time = None
                     self._frames.append(data_copy)
                     self._active_frames_count = 1
-                    print(f"[VAD] Speech STARTED (Mode: {self.mode})")
+                    pass # print(f"[VAD] Speech STARTED (Mode: {self.mode})")
                     if self.on_speech_start:
                         threading.Thread(target=self.on_speech_start, daemon=True).start()
                 else:

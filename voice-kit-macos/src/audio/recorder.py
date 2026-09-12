@@ -40,7 +40,7 @@ class AudioRecorder:
                 self._stream.start()
             except sd.PortAudioError as e:
                 if self.device is not None:
-                    print(f"Error with device {self.device}: {e}. Falling back to default device.")
+                    pass # print(f"Error with device {self.device}: {e}. Falling back to default device.")
                     try:
                         sd._terminate()
                         sd._initialize()
@@ -60,12 +60,12 @@ class AudioRecorder:
                     raise e
             except Exception as e:
                 self._recording = False
-                print(f"Error starting audio stream: {e}")
+                pass # print(f"Error starting audio stream: {e}")
                 raise e
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status) -> None:
         if status:
-            print(f"Audio status: {status}")
+            pass # print(f"Audio status: {status}")
         if not self._recording:
             return
 
@@ -103,7 +103,7 @@ class AudioRecorder:
                 self._stream.stop()
                 self._stream.close()
             except Exception as e:
-                print(f"Error stopping stream: {e}")
+                pass # print(f"Error stopping stream: {e}")
             finally:
                 self._stream = None
 
@@ -122,7 +122,7 @@ class AudioRecorder:
             sf.write(file_path, audio_data, self.sample_rate)
             return file_path
         except Exception as e:
-            print(f"Error writing audio file: {e}")
+            pass # print(f"Error writing audio file: {e}")
             return ""
 
     def get_wav_bytes(self) -> bytes:

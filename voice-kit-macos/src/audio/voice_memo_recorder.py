@@ -33,7 +33,7 @@ class VoiceMemoRecorder(QObject):
                     self._frames = []
                 self.is_recording = True
                 self._preloaded = False
-                print(f"[VoiceMemoRecorder] Starting fresh recording. Device: {self.device}, SR: {self.sample_rate}, Channels: {self.channels}")
+                pass # print(f"[VoiceMemoRecorder] Starting fresh recording. Device: {self.device}, SR: {self.sample_rate}, Channels: {self.channels}")
                 
             self.is_paused = False
             self.signal_state_changed.emit("recording")
@@ -48,7 +48,7 @@ class VoiceMemoRecorder(QObject):
                 )
                 self._stream.start()
             except sd.PortAudioError as e:
-                print(f"[VoiceMemoRecorder] Error with device {self.device}: {e}. Falling back to default.")
+                pass # print(f"[VoiceMemoRecorder] Error with device {self.device}: {e}. Falling back to default.")
                 try:
                     sd._terminate()
                     sd._initialize()
@@ -73,7 +73,7 @@ class VoiceMemoRecorder(QObject):
                     self._stream.close()
                     self._stream = None
                 self.signal_state_changed.emit("paused")
-                print(f"[VoiceMemoRecorder] Paused recording. Collected {len(self._frames)} chunks so far.")
+                pass # print(f"[VoiceMemoRecorder] Paused recording. Collected {len(self._frames)} chunks so far.")
 
     def stop_recording(self):
         with self._lock:
@@ -85,17 +85,17 @@ class VoiceMemoRecorder(QObject):
                 self._stream = None
                 
             if not self._frames:
-                print("[VoiceMemoRecorder] Stopped, but no frames collected.")
+                pass # print("[VoiceMemoRecorder] Stopped, but no frames collected.")
                 return None
                 
             audio_data = np.concatenate(self._frames, axis=0)
-            print(f"[VoiceMemoRecorder] Stopped. Total frames: {audio_data.shape}. Saving to temp file...")
+            pass # print(f"[VoiceMemoRecorder] Stopped. Total frames: {audio_data.shape}. Saving to temp file...")
             
             fd, temp_file_path = tempfile.mkstemp(suffix=".wav")
             os.close(fd)
             
             sf.write(temp_file_path, audio_data, self.sample_rate, subtype='PCM_16')
-            print(f"[VoiceMemoRecorder] Saved wav to {temp_file_path}")
+            pass # print(f"[VoiceMemoRecorder] Saved wav to {temp_file_path}")
                 
             self.signal_state_changed.emit("stopped")
             return temp_file_path
@@ -111,7 +111,7 @@ class VoiceMemoRecorder(QObject):
                 self._frames = [data]
                 self._preloaded = True
             except Exception as e:
-                print(f"Failed to preload: {e}")
+                pass # print(f"Failed to preload: {e}")
 
     def get_preview_file(self):
         with self._lock:
@@ -124,7 +124,7 @@ class VoiceMemoRecorder(QObject):
 
     def _audio_callback(self, indata, frames, time_info, status):
         if status:
-            print(f"[VoiceMemoRecorder] Status: {status}")
+            pass # print(f"[VoiceMemoRecorder] Status: {status}")
         if not self.is_recording or self.is_paused:
             return
             

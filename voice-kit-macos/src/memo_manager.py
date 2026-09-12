@@ -42,6 +42,7 @@ class MemoManager:
                 # Check for transcripts
                 txt_path = os.path.join(self.folder_path, f"{base_name}.txt")
                 json_path = os.path.join(self.folder_path, f"{base_name}.json")
+                mp4_path = os.path.join(self.folder_path, f"{base_name}.mp4")
                 
                 has_refined = os.path.exists(txt_path)
                 has_timestamped = os.path.exists(json_path)
@@ -55,7 +56,8 @@ class MemoManager:
                     "has_refined": has_refined,
                     "has_timestamped": has_timestamped,
                     "txt_path": txt_path if has_refined else None,
-                    "json_path": json_path if has_timestamped else None
+                    "json_path": json_path if has_timestamped else None,
+                    "mp4_path": mp4_path if os.path.exists(mp4_path) else None
                 })
                 
         # Sort newest first
@@ -106,14 +108,23 @@ class MemoManager:
             
         return deleted
 
-    def save_new_memo(self, temp_wav_path, desired_title=None):
+    def save_new_memo(self, temp_wav_path, desired_title=None, temp_mp4_path=None):
         self._ensure_dir()
         if not desired_title:
             desired_title = f"New Recording {datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
         target_path = os.path.join(self.folder_path, f"{desired_title}.wav")
         shutil.copy2(temp_wav_path, target_path)
+        if temp_mp4_path:
+            mp4_target = os.path.join(self.folder_path, f"{desired_title}.mp4")
+            shutil.copy2(temp_mp4_path, mp4_target)
         return desired_title
+        
+    def update_memo_mp4(self, memo_id, temp_mp4_path):
+        self._ensure_dir()
+        target_path = os.path.join(self.folder_path, f"{memo_id}.mp4")
+        shutil.copy2(temp_mp4_path, target_path)
+        return memo_id
 
     def update_memo_audio(self, memo_id, temp_wav_path):
         self._ensure_dir()
