@@ -52,10 +52,15 @@ class VisionClient:
             response.raise_for_status()
             result = response.json()
             
+            print(f"\n[RAW Vision API Response]: {json.dumps(result, ensure_ascii=False)}\n")
+            
             if "choices" in result and len(result["choices"]) > 0:
                 message = result["choices"][0].get("message", {})
-                return message.get("content", "").strip()
+                content = message.get("content", "").strip()
+                print(f"\n[VisionClient Response]:\n{content}\n")
+                return content
             return "Error: Unexpected API response format."
         except Exception as e:
             logging.error(f"Vision API Error: {e}")
+            print(f"\n[VisionClient Error]: {e}\n")
             return f"Error: {e}"

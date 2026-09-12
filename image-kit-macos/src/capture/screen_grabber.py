@@ -44,8 +44,19 @@ class ScreenGrabber:
     @staticmethod
     def pixmap_to_base64(pixmap, format="PNG"):
         """
-        Converts a QPixmap to a base64 encoded string.
+        Converts a QPixmap to a base64 encoded string, scaling down if it's too large 
+        to prevent LLM Out-Of-Memory errors and dimension bugs (especially for Qwen-VL).
         """
+        from PyQt6.QtCore import Qt
+        
+        # Scale down if the image is larger than 1024 on its longest edge
+        if pixmap.width() > 1024 or pixmap.height() > 1024:
+            pixmap = pixmap.scaled(
+                1024, 1024, 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            )
+            
         byte_array = QBuffer()
         byte_array.open(QIODevice.OpenModeFlag.WriteOnly)
         pixmap.save(byte_array, format)

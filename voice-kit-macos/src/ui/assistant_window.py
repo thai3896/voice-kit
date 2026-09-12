@@ -90,6 +90,8 @@ class AssistantWindow(QWidget):
     signal_append_user_msg = pyqtSignal(str)
     signal_append_user_msg_with_images = pyqtSignal(str, list)
     signal_append_ai_msg = pyqtSignal(str)
+    signal_show_indicator = pyqtSignal(str)
+    signal_hide_indicator = pyqtSignal()
     signal_toggle_vad = pyqtSignal()
     signal_close = pyqtSignal()
     signal_update_volume = pyqtSignal(float)
@@ -122,6 +124,8 @@ class AssistantWindow(QWidget):
         self.signal_append_ai_msg.connect(self.append_ai_msg)
         self.signal_update_volume.connect(self._on_volume_update)
         self.signal_update_input.connect(self._on_update_input)
+        self.signal_show_indicator.connect(self.show_indicator)
+        self.signal_hide_indicator.connect(self.hide_indicator)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -233,6 +237,12 @@ class AssistantWindow(QWidget):
         """)
         container_layout.addWidget(self.log_text)
         
+        # Indicator label
+        self.status_indicator = QLabel()
+        self.status_indicator.setStyleSheet("color: #8888aa; font-style: italic; font-size: 13px; padding-left: 5px;")
+        self.status_indicator.hide()
+        container_layout.addWidget(self.status_indicator)
+
         # Input Container
         input_container = QVBoxLayout()
         input_container.setSpacing(4)
@@ -337,18 +347,29 @@ class AssistantWindow(QWidget):
     def _on_volume_update(self, rms: float):
         self.audio_meter.set_volume(rms)
 
+    def show_indicator(self, text: str):
+        self.status_indicator.setText(text)
+        self.status_indicator.show()
+        self._scroll_to_bottom()
+
+    def hide_indicator(self):
+        self.status_indicator.hide()
+
     def append_user_msg(self, text: str):
-        self.log_text.append(f"<b style='color:#0077ee;'>You:</b> {text}<br>")
+        formatted_text = text.replace('\n', '<br>')
+        self.log_text.append(f"<b style='color:#0077ee;'>You:</b> {formatted_text}<br><br>")
         self._scroll_to_bottom()
 
     def append_user_msg_with_images(self, text: str, images: list):
-        html = f"<b style='color:#0077ee;'>You:</b> {text}"
+        formatted_text = text.replace('\n', '<br>')
+        html = f"<b style='color:#0077ee;'>You:</b><br>{formatted_text}"
         if images:
-            html += "<br>"
+            html += "<br><div style='margin-top: 10px; margin-bottom: 10px;'>"
             for img_data in images:
                 # img_data is like "data:image/png;base64,..."
-                html += f"<img src='{img_data}' width='120' style='border-radius:8px; margin:4px 4px 4px 0;'>"
-        html += "<br>"
+                html += f"<img src='{img_data}' width='120' style='border-radius:8px; margin:4px 8px 4px 0;'>"
+            html += "</div>"
+        html += "<br><br>"
         self.log_text.append(html)
         self._scroll_to_bottom()
 
@@ -360,7 +381,8 @@ class AssistantWindow(QWidget):
             self.input_text.setPlainText(text)
 
     def append_ai_msg(self, text: str):
-        self.log_text.append(f"<b style='color:#ffaa00;'>OpenClaw:</b> {text}<br><br>")
+        formatted_text = text.replace('\n', '<br>')
+        self.log_text.append(f"<b style='color:#ffaa00;'>OpenClaw:</b> {formatted_text}<br><br>")
         self._scroll_to_bottom()
         
     def clear_session(self):

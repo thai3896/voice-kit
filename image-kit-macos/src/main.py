@@ -123,7 +123,15 @@ class AppController(QObject):
 
     def close_overlay(self):
         if self.overlay:
-            self.overlay.close()
+            # Hide immediately and schedule close for the next event loop iteration
+            # to prevent crashing if triggered from a button's clicked signal inside the overlay
+            self.overlay.hide()
+            
+            # Use a local reference so we can set self.overlay to None immediately
+            overlay_ref = self.overlay
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, overlay_ref.close)
+            
             self.overlay = None
 
     def process_selection(self, rect):
@@ -162,6 +170,7 @@ class AppController(QObject):
         
         cropped = self.overlay.pixmap.copy(rect)
         self.close_overlay()
+        
         base64_img = ScreenGrabber.pixmap_to_base64(cropped)
         
         if self.config.get("show_editor"):

@@ -19,6 +19,9 @@ from src.ui.editor_window import EditorWindow
 from src.ui.sessions_dialog import SessionsDialog
 from src.ui.recordings_window import RecordingsWindow
 from src.history_manager import HistoryManager
+from src.memo_manager import MemoManager
+from src.audio.voice_memo_recorder import VoiceMemoRecorder
+from src.ui.voice_memo_window import VoiceMemoWindow
 
 from src.transcription.base import BaseTranscriptionProvider
 from src.transcription.voice_editor_provider import VoiceEditorProvider
@@ -55,6 +58,13 @@ class AppCoordinator(QObject):
         self.editor.history_mgr = self.history_mgr
         self.tray = TrayIcon()
         self.tray.show()
+        
+        self.memo_manager = MemoManager(self.config)
+        self.voice_memo_recorder = VoiceMemoRecorder(
+            sample_rate=self.config.get("audio.sample_rate", 16000),
+            channels=self.config.get("audio.channels", 1),
+            device=self.config.get("audio.device_id", None)
+        )
 
         # Initialize engines
         self.recorder = AudioRecorder(
@@ -151,6 +161,7 @@ class AppCoordinator(QObject):
         self.tray.signal_open_app.connect(self._open_app)
         self.tray.signal_open_sessions.connect(self.show_sessions)
         self.tray.signal_open_recordings.connect(self.show_recordings)
+        self.tray.signal_open_voice_memo.connect(self.show_voice_memos)
         self.tray.signal_open_settings.connect(self.open_settings)  # kept for compat
         self.tray.trigger_active_listening.connect(self.toggle_active_listening)
         self.tray.signal_quit.connect(self.quit_app)
@@ -424,6 +435,18 @@ class AppCoordinator(QObject):
         self.recordings_window.raise_()
         self.recordings_window.activateWindow()
 
+    def show_voice_memos(self):
+        if not hasattr(self, 'voice_memo_window') or self.voice_memo_window is None:
+            self.voice_memo_window = VoiceMemoWindow(
+                memo_manager=self.memo_manager,
+                recorder=self.voice_memo_recorder,
+                ai_client=self.provider  # Pass the provider to handle transcription API calls later
+            )
+        self.voice_memo_window.load_memos()
+        self.voice_memo_window.show()
+        self.voice_memo_window.raise_()
+        self.voice_memo_window.activateWindow()
+
     def regenerate_recording(self, session_id: str, audio_path: str, on_complete_callback):
         def _regen_worker():
             try:
@@ -489,7 +512,12 @@ class AppCoordinator(QObject):
         
         def _worker():
             print("Sending to OpenClaw...")
-            answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.", images=images)
+            self.assistant_win.signal_show_indicator.emit("⏳ OpenClaw is responding...")
+            try:
+                answer = self.openclaw.ask(text, system_prompt="You are a helpful voice assistant.", images=images)
+            finally:
+                self.assistant_win.signal_hide_indicator.emit()
+                
             self.assistant_win.signal_append_ai_msg.emit(answer)
             
             print("Synthesizing audio...")
@@ -545,6 +573,8 @@ class AppCoordinator(QObject):
                     pass
 
             print("VAD segment recorded. Transcribing...")
+            self.assistant_win.signal_show_indicator.emit("🎙️ Processing audio...")
+            
             import io, wave
             wav_io = io.BytesIO()
             with wave.open(wav_io, "wb") as wf:
@@ -554,7 +584,11 @@ class AppCoordinator(QObject):
                 wf.writeframes(audio_bytes)
             wav_bytes = wav_io.getvalue()
 
-            text = self.provider.transcribe_bytes(wav_bytes, on_partial=None)
+            try:
+                text = self.provider.transcribe_bytes(wav_bytes, on_partial=None)
+            finally:
+                self.assistant_win.signal_hide_indicator.emit()
+                
             if not text or text.startswith("[Error") or text.startswith("[Transcrib") or text.strip() == "":
                 return
                 
@@ -595,6 +629,7 @@ class AppCoordinator(QObject):
         if was_listening:
             self.vad.stop()
             
+        self.vad.device = self.config.get("audio.device_id", None)
         self.vad.mode = self.config.get("vad.mode", "energy")
         self.vad.energy_threshold = float(self.config.get("vad.energy_threshold", 0.006))
         self.vad.silence_duration_limit = float(self.config.get("vad.silence_duration", 1.5))

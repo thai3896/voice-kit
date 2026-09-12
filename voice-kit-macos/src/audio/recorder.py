@@ -38,6 +38,26 @@ class AudioRecorder:
                     callback=self._audio_callback
                 )
                 self._stream.start()
+            except sd.PortAudioError as e:
+                if self.device is not None:
+                    print(f"Error with device {self.device}: {e}. Falling back to default device.")
+                    try:
+                        sd._terminate()
+                        sd._initialize()
+                    except Exception:
+                        pass
+                    self.device = None
+                    self._stream = sd.InputStream(
+                        samplerate=self.sample_rate,
+                        channels=self.channels,
+                        device=None,
+                        dtype="int16",
+                        callback=self._audio_callback
+                    )
+                    self._stream.start()
+                else:
+                    self._recording = False
+                    raise e
             except Exception as e:
                 self._recording = False
                 print(f"Error starting audio stream: {e}")

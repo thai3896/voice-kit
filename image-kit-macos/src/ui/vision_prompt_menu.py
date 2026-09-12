@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QApplication
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 class VisionPromptMenu(QDialog):
     prompt_selected = pyqtSignal(str)
@@ -7,7 +7,6 @@ class VisionPromptMenu(QDialog):
     def __init__(self, prompts_dict, parent=None):
         super().__init__(parent)
         self.prompts_dict = prompts_dict
-        
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -52,5 +51,20 @@ class VisionPromptMenu(QDialog):
         prompt_name = item.text()
         prompt_text = self.prompts_dict.get(prompt_name)
         if prompt_text:
-            self.prompt_selected.emit(prompt_text)
-        self.close()
+            from PyQt6.QtCore import QTimer
+            # We MUST defer the signal emission because it may open a dialog.
+            # Opening a dialog runs a nested event loop, which processes pending deletes.
+            # If we don't defer, the QListWidget is deleted while its mouseReleaseEvent is still on the call stack, causing a Bus Error!
+            QTimer.singleShot(0, lambda p=prompt_text: self._deferred_emit_and_close(p))
+
+    def _deferred_emit_and_close(self, prompt_text):
+        from PyQt6 import sip
+        if sip.isdeleted(self):
+            return
+            
+        # Emit signal (this might open a dialog and delete this widget in a nested event loop)
+        self.prompt_selected.emit(prompt_text)
+        
+        # Safe close check
+        if not sip.isdeleted(self):
+            self.close()

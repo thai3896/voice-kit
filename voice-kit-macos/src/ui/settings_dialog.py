@@ -32,6 +32,29 @@ class SettingsDialog(QDialog):
             except Exception:
                 pass
 
+    def _populate_mics(self):
+        self.mic_combo.clear()
+        try:
+            import sounddevice as sd
+            sd._terminate()
+            sd._initialize()
+            default_input = sd.default.device[0]
+            for i, d in enumerate(sd.query_devices()):
+                if d["max_input_channels"] > 0:
+                    name = d["name"]
+                    if i == default_input:
+                        name += " (Default)"
+                    self.mic_combo.addItem(name, userData=i)
+        except Exception as e:
+            print(f"Error querying audio devices: {e}")
+            self.mic_combo.addItem("Default Microphone", userData=None)
+            
+        mic_id = self.config_manager.get("audio.device_id", None)
+        if mic_id is not None:
+            idx = self.mic_combo.findData(mic_id)
+            if idx >= 0:
+                self.mic_combo.setCurrentIndex(idx)
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
 
@@ -55,19 +78,18 @@ class SettingsDialog(QDialog):
         self.mode_combo.addItems(["toggle", "hold"])
         gen_layout.addRow("Recording Mode:", self.mode_combo)
 
+        mic_box = QHBoxLayout()
         self.mic_combo = QComboBox()
-        try:
-            default_input = sd.default.device[0]
-            for i, d in enumerate(sd.query_devices()):
-                if d["max_input_channels"] > 0:
-                    name = d["name"]
-                    if i == default_input:
-                        name += " (Default)"
-                    self.mic_combo.addItem(name, userData=i)
-        except Exception as e:
-            print(f"Error querying audio devices: {e}")
-            self.mic_combo.addItem("Default Microphone", userData=None)
-        gen_layout.addRow("Microphone:", self.mic_combo)
+        self._populate_mics()
+        mic_box.addWidget(self.mic_combo)
+
+        self.btn_refresh_mic = QPushButton("🔄 Refresh")
+        self.btn_refresh_mic.setToolTip("Refresh audio devices")
+        self.btn_refresh_mic.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh_mic.clicked.connect(self._populate_mics)
+        mic_box.addWidget(self.btn_refresh_mic)
+        
+        gen_layout.addRow("Microphone:", mic_box)
 
         self.max_rec_spin = QSpinBox()
         self.max_rec_spin.setRange(10, 5000)
@@ -107,6 +129,21 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(gen_tab, "General")
 
+        # Tab: Voice Memos
+        memo_tab = QWidget()
+        memo_layout = QFormLayout(memo_tab)
+        
+        folder_box = QHBoxLayout()
+        self.memo_folder_input = QLineEdit()
+        self.memo_folder_input.setPlaceholderText("~/.voicekit/memos")
+        folder_box.addWidget(self.memo_folder_input)
+        
+        self.btn_browse_folder = QPushButton("Browse...")
+        self.btn_browse_folder.clicked.connect(self._on_browse_memo_folder)
+        folder_box.addWidget(self.btn_browse_folder)
+        
+        memo_layout.addRow("Save Location:", folder_box)
+        self.tabs.addTab(memo_tab, "Voice Memos")
         # Tab 2: Transcription Provider
         trans_tab = QWidget()
         trans_layout = QVBoxLayout(trans_tab)
@@ -261,6 +298,12 @@ class SettingsDialog(QDialog):
         self.tts_url_input.setText(cfg.get("tts.kokoro_url", "http://kokoro.minipc.na/v1/audio/speech"))
         self.tts_voice_combo.setCurrentText(cfg.get("tts.voice", "af_bella"))
 
+    def _on_browse_memo_folder(self):
+        from PyQt6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(self, "Select Voice Memo Folder")
+        if folder:
+            self.memo_folder_input.setText(folder)
+
     def _save_and_close(self):
         cfg = self.config_manager
         cfg.set("hotkey.combination", self.hotkey_input.text().strip() or "right_fn")
@@ -271,6 +314,8 @@ class SettingsDialog(QDialog):
             cfg.set("audio.device_id", int(mic_id))
         else:
             cfg.set("audio.device_id", None)
+            
+        cfg.set("voice_memo_folder", self.memo_folder_input.text().strip() or "~/.voicekit/memos")
             
         cfg.set("history.max_recordings", int(self.max_rec_spin.value()))
         cfg.set("vad.mode", self.vad_mode_combo.currentText())

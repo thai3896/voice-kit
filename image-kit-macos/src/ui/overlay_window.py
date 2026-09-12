@@ -195,8 +195,5 @@ class OverlayWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._is_closing = True
-        if hasattr(self, 'toolbar') and self.toolbar:
-            self.toolbar.close()
-        if hasattr(self, 'menu') and self.menu:
-            self.menu.close()
+        # Let Qt handle the deletion of child widgets automatically to prevent double-delete crashes
         super().closeEvent(event)

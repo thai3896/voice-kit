@@ -44,7 +44,9 @@ DEFAULT_CONFIG = {
     },
     "history": {
         "max_recordings": 100
-    }
+    },
+    "voice_memo_folder": "~/.voicekit/memos",
+    "prompts": {}
 }
 
 

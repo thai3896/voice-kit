@@ -166,6 +166,7 @@ class AIClient:
                                         on_chunk(content)
                             except json.JSONDecodeError:
                                 pass
+                print(f"\n[AIClient Stream Ended]:\n{full_text}\n")
                 return full_text
             else:
                 response = requests.post(url, headers=headers, json=payload, timeout=180, verify=False)
@@ -174,8 +175,11 @@ class AIClient:
                 
                 if "choices" in result and len(result["choices"]) > 0:
                     message = result["choices"][0].get("message", {})
-                    return message.get("content", "").strip()
+                    content = message.get("content", "").strip()
+                    print(f"\n[AIClient Response]:\n{content}\n")
+                    return content
                 return "Error: Unexpected API response format."
         except Exception as e:
             logging.error(f"AI API Error: {e}")
+            print(f"\n[AIClient Error]: {e}\n")
             return f"Error: {e}"

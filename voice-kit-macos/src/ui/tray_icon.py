@@ -7,6 +7,7 @@ class TrayIcon(QSystemTrayIcon):
     signal_open_app = pyqtSignal()
     signal_open_sessions = pyqtSignal()
     signal_open_recordings = pyqtSignal()
+    signal_open_voice_memo = pyqtSignal()
     trigger_record = pyqtSignal()
     trigger_sessions = pyqtSignal()
     trigger_settings = pyqtSignal()
@@ -71,6 +72,10 @@ class TrayIcon(QSystemTrayIcon):
         self.recordings_action = QAction("🎧 Preview Recordings...", self.menu)
         self.recordings_action.triggered.connect(self.signal_open_recordings.emit)
         self.menu.addAction(self.recordings_action)
+
+        self.voice_memo_action = QAction("🎙️ Voice Memos...", self.menu)
+        self.voice_memo_action.triggered.connect(self.signal_open_voice_memo.emit)
+        self.menu.addAction(self.voice_memo_action)
 
         self.active_listening_action = QAction("Toggle Active Listening", self.menu)
         self.active_listening_action.setCheckable(True)
