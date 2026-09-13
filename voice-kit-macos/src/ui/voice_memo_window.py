@@ -168,6 +168,8 @@ class WaveformWidget(QWidget):
         painter.drawPath(path_unplayed)
 
 class TranscriptWidget(QTextEdit):
+    text_saved = pyqtSignal(str)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
@@ -183,23 +185,43 @@ class TranscriptWidget(QTextEdit):
         self.transcript_data = None
         self.current_time = 0.0
 
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        if not self.isReadOnly():
+            self.text_saved.emit(self.toPlainText())
+
     def set_transcript(self, transcript_data):
         self.transcript_data = transcript_data
         self._render_text()
         
     def _render_text(self):
         if not self.transcript_data:
-            self.setHtml("<p style='color:#888;'>No transcript available.</p>")
+            self.setReadOnly(True)
+            self.setHtml("""
+                <div style='color:#888; text-align:center; padding-top: 100px; font-family: -apple-system, system-ui;'>
+                    <h3 style='color:#a0a0a5;'>No transcript</h3>
+                    <p style='color:#666; margin-top: 10px;'>Click 'Transcribe' to generate text.</p>
+                    <br><br>
+                    <p style='color:#555;'><i>Tip: You can drag & drop any video or audio file<br>directly into this window to import it as a memo.</i></p>
+                </div>
+            """)
             return
             
-        # If it's a string (Voice-Editor format)
+        # If it's a string (Voice-Editor format or Refined text)
         if isinstance(self.transcript_data, str):
-            self.setPlainText(self.transcript_data)
+            self.setReadOnly(False)
+            html_text = self.transcript_data.replace('\n', '<br>')
+            self.setHtml(f"<p style='color:#f1f2f6;'>{html_text}</p>")
+            # Auto-scroll to bottom
+            from PyQt6.QtGui import QTextCursor
+            self.moveCursor(QTextCursor.MoveOperation.End)
             return
             
         # If it's verbose_json format (timestamped)
-        html = "<p>"
+        self.setReadOnly(True)
+        html = "<p style='color:#f1f2f6;'>"
         words = self.transcript_data.get("words", [])
+        has_active = False
         for i, word_obj in enumerate(words):
             word = word_obj.get("word", "")
             start = word_obj.get("start", 0.0)
@@ -208,10 +230,14 @@ class TranscriptWidget(QTextEdit):
             color = "#f1f2f6"
             if start <= self.current_time <= end:
                 color = "#0a84ff"
-                
-            html += f"<span style='color:{color};'>{word}</span> "
+                html += f"<a name='active'></a><span style='color:{color};'>{word}</span> "
+                has_active = True
+            else:
+                html += f"<span style='color:{color};'>{word}</span> "
         html += "</p>"
         self.setHtml(html)
+        if has_active:
+            self.scrollToAnchor("active")
 
     def update_time(self, current_time):
         self.current_time = current_time
@@ -219,6 +245,46 @@ class TranscriptWidget(QTextEdit):
         if isinstance(self.transcript_data, dict) and "words" in self.transcript_data:
             self._render_text()
 
+
+class ImportWorker(QThread):
+    finished_signal = pyqtSignal(bool)
+    
+    def __init__(self, file_path, target_dir):
+        super().__init__()
+        self.file_path = file_path
+        self.target_dir = target_dir
+        
+    def run(self):
+        import os, shutil, subprocess
+        from datetime import datetime
+        
+        base_name = os.path.splitext(os.path.basename(self.file_path))[0]
+        target_base = os.path.join(self.target_dir, base_name)
+        idx = 1
+        while os.path.exists(f"{target_base}.wav"):
+            target_base = os.path.join(self.target_dir, f"{base_name}_{idx}")
+            idx += 1
+            
+        out_wav = f"{target_base}.wav"
+        out_mp4 = f"{target_base}.mp4"
+        
+        ffmpeg_exe = shutil.which("ffmpeg")
+        if not ffmpeg_exe:
+            if os.path.exists("/opt/homebrew/bin/ffmpeg"): ffmpeg_exe = "/opt/homebrew/bin/ffmpeg"
+            elif os.path.exists("/usr/local/bin/ffmpeg"): ffmpeg_exe = "/usr/local/bin/ffmpeg"
+            else: ffmpeg_exe = "ffmpeg"
+            
+        subprocess.run([ffmpeg_exe, '-y', '-i', self.file_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', out_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        probe_cmd = [ffmpeg_exe, '-i', self.file_path]
+        result = subprocess.run(probe_cmd, stderr=subprocess.PIPE, text=True)
+        if 'Video:' in result.stderr:
+            if self.file_path.lower().endswith('.mp4'):
+                shutil.copy(self.file_path, out_mp4)
+            else:
+                subprocess.run([ffmpeg_exe, '-y', '-i', self.file_path, '-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', out_mp4], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        self.finished_signal.emit(True)
 
 class VoiceMemoWindow(QMainWindow):
     def __init__(self, memo_manager, recorder, ai_client, parent=None):
@@ -236,6 +302,7 @@ class VoiceMemoWindow(QMainWindow):
         self.setWindowTitle("Voice Memos")
         self.resize(1000, 600)
         self.setStyleSheet("background-color: #1e1e24; color: #f1f2f6;")
+        self.setAcceptDrops(True)
         
         self.player = QMediaPlayer()
         self.audio_output = QAudioOutput()
@@ -349,6 +416,7 @@ class VoiceMemoWindow(QMainWindow):
         right_layout.addLayout(toolbar)
         
         self.transcript_view = TranscriptWidget()
+        self.transcript_view.text_saved.connect(self._on_transcript_edited)
         self.waveform_view = WaveformWidget()
         self.waveform_view.setFixedHeight(120)
         self.waveform_view.signal_seek.connect(self._on_seek)
@@ -467,7 +535,6 @@ class VoiceMemoWindow(QMainWindow):
         controls.addWidget(self.btn_done)
         controls.addStretch()
         bottom_layout.addLayout(controls)
-        right_layout.addStretch(1)
         right_layout.addWidget(bottom_area)
         
         splitter.addWidget(right_panel)
@@ -1047,6 +1114,18 @@ class VoiceMemoWindow(QMainWindow):
             memo = item.data(Qt.ItemDataRole.UserRole)
             if memo:
                 deleting_ids.add(memo["id"])
+                
+        if len(selected) == 1:
+            memo = selected[0].data(Qt.ItemDataRole.UserRole)
+            title = memo.get("title", "this memo") if memo else "this memo"
+            msg = f"Are you sure you want to delete '{title}'?"
+        else:
+            msg = f"Are you sure you want to delete {len(selected)} memos?"
+            
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(self, 'Confirm Delete', msg, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.No:
+            return
         
         # If the currently previewed memo is one being deleted, stop and clear it
         if self.current_memo and self.current_memo.get("id") in deleting_ids:
@@ -1198,6 +1277,16 @@ class VoiceMemoWindow(QMainWindow):
             a.triggered.connect(lambda: self.start_transcription("timestamped"))
             
         self.btn_transcribe.setMenu(menu)
+    def _on_transcript_edited(self, new_text):
+        if not self.current_memo or not self.current_memo.get("has_refined"):
+            return
+        mode = getattr(self, 'active_transcript_mode', 'timestamped' if self.current_memo.get("has_timestamped") else 'refined')
+        if mode == "refined":
+            try:
+                with open(self.current_memo["txt_path"], "w") as f:
+                    f.write(new_text)
+            except Exception as e:
+                print(f"Error saving transcript: {e}")
 
     def switch_transcript_view(self, mode):
         if not self.current_memo: return
@@ -1272,3 +1361,33 @@ class VoiceMemoWindow(QMainWindow):
         import threading
         t = threading.Thread(target=worker, daemon=True)
         t.start()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+        
+        file_path = urls[0].toLocalFile()
+        if not file_path:
+            return
+            
+        ext = file_path.lower().split('.')[-1]
+        if ext not in ['mp4', 'mov', 'mkv', 'avi', 'wav', 'mp3', 'm4a', 'aac', 'flac', 'webm']:
+            return
+            
+        self.btn_done.setText("Importing...")
+        self.btn_done.setEnabled(False)
+        self.import_worker = ImportWorker(file_path, self.memo_manager.folder_path)
+        self.import_worker.finished_signal.connect(self._on_import_done)
+        self.import_worker.start()
+
+    def _on_import_done(self, success):
+        self.btn_done.setText("Done")
+        self.btn_done.setEnabled(True)
+        self.load_memos()

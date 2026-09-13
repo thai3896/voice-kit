@@ -88,6 +88,20 @@ class MemoManager:
             old_json = os.path.join(self.folder_path, f"{old_id}.json")
             if os.path.exists(old_json):
                 os.rename(old_json, os.path.join(self.folder_path, f"{new_title}.json"))
+                
+            # Rename video files if exists
+            old_mp4 = os.path.join(self.folder_path, f"{old_id}.mp4")
+            if os.path.exists(old_mp4):
+                os.rename(old_mp4, os.path.join(self.folder_path, f"{new_title}.mp4"))
+                
+            old_jpg = os.path.join(self.folder_path, f"{old_id}.jpg")
+            if os.path.exists(old_jpg):
+                os.rename(old_jpg, os.path.join(self.folder_path, f"{new_title}.jpg"))
+                
+            old_poster = os.path.join(self.folder_path, f"{old_id}_poster.jpg")
+            if os.path.exists(old_poster):
+                os.rename(old_poster, os.path.join(self.folder_path, f"{new_title}_poster.jpg"))
+                
             return True
         return False
 
@@ -96,6 +110,9 @@ class MemoManager:
         wav = os.path.join(self.folder_path, f"{memo_id}.wav")
         txt = os.path.join(self.folder_path, f"{memo_id}.txt")
         jsn = os.path.join(self.folder_path, f"{memo_id}.json")
+        mp4 = os.path.join(self.folder_path, f"{memo_id}.mp4")
+        jpg = os.path.join(self.folder_path, f"{memo_id}.jpg")
+        poster = os.path.join(self.folder_path, f"{memo_id}_poster.jpg")
         
         deleted = False
         if os.path.exists(wav):
@@ -105,6 +122,12 @@ class MemoManager:
             os.remove(txt)
         if os.path.exists(jsn):
             os.remove(jsn)
+        if os.path.exists(mp4):
+            os.remove(mp4)
+        if os.path.exists(jpg):
+            os.remove(jpg)
+        if os.path.exists(poster):
+            os.remove(poster)
             
         return deleted
 
